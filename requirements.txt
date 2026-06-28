@@ -1,0 +1,28 @@
+# omni-voice-lab dependencies (Python 3.12, uv).
+#
+# The torch trio must come from the CUDA 12.8 wheel index. Either keep the
+# --extra-index-url line below, or install it explicitly first:
+#   uv pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#
+# transformers is pinned to 4.51.0 because MiniCPM-o 4.5's remote code targets it;
+# other versions may break. setuptools<81 is required because librosa 0.9.0 imports
+# pkg_resources, which newer setuptools removed.
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+
+transformers==4.51.0
+accelerate==1.14.0
+minicpmo-utils[all]==1.0.6
+einops==0.8.1
+soundfile==0.12.1
+librosa==0.9.0
+bitsandbytes==0.49.2
+huggingface-hub==0.36.2
+numpy==2.4.4
+scipy==1.18.0
+setuptools<81

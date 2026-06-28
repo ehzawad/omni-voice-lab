@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Virtual environments (managed by uv; recreate from requirements.txt)
+.venv/
+venv/
+env/
+
+# uv
+uv.lock
+
+# Logs and scratch
+*.log
+.*.log
+scratch/
+tmp/
+
+# Generated audio at the repo root (examples/ outputs are committed deliberately)
+/*.wav
+/*.mp3
+
+# Model weights and caches (downloaded on first use from the Hugging Face Hub)
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+hf_cache/
+.cache/
+
+# Secrets and local config
+.env
+*.token
+*hf_token*
+.huggingface/
+
+# OS
+.DS_Store
+Thumbs.db

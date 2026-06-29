@@ -23,8 +23,14 @@ if ADAPTER:
 print("[load] SNAC 24khz")
 snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").to(DEV).eval()
 
-rows = B.load_fleurs_split("test", n=N)
-print(f"[data] {len(rows)} held-out FLEURS bn texts")
+texts_json = os.environ.get("TEXTS_JSON")
+if texts_json:
+    import json as _j
+    rows = [{"text": t} for t in _j.load(open(texts_json))[:N]]
+    print(f"[data] {len(rows)} held-out texts from {texts_json}")
+else:
+    rows = B.load_fleurs_split("test", n=N)
+    print(f"[data] {len(rows)} held-out FLEURS bn texts")
 
 manifest = []
 for i, r in enumerate(rows):

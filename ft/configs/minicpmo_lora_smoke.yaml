@@ -1,0 +1,48 @@
+### MiniCPM-o-4_5 QLoRA audio LoRA SMOKE TEST (plumbing proof only)
+### model
+model_name_or_path: openbmb/MiniCPM-o-4_5
+# NOTE: bnb 4-bit quantizes Linear layers used inside the audio/TTS tower's
+# torch-native nn.MultiheadAttention, which breaks (packed 4-bit weight cannot
+# matmul). Model is only ~19GB bf16 and fits the 48GB A6000, so use bf16 LoRA.
+trust_remote_code: true
+# enable_input_require_grads (triggered by gradient checkpointing) makes the
+# embedding output require grad, which breaks MiniCPM-o's in-place scatter_ that
+# injects audio/vision features. Disable gradient checkpointing for the smoke run.
+disable_gradient_checkpointing: true
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 8
+lora_target: q_proj,v_proj
+freeze_vision_tower: true
+freeze_multi_modal_projector: true
+
+### dataset
+dataset: mllm_audio_demo
+template: minicpm_o
+cutoff_len: 1024
+max_samples: 6
+preprocessing_num_workers: 2
+dataloader_num_workers: 2
+
+### output
+output_dir: /mnt/sdb/arafat/hervoice/adapters/minicpmo_lora_smoke
+logging_steps: 1
+save_steps: 100
+save_strategy: steps
+plot_loss: false
+overwrite_output_dir: true
+save_only_model: false
+report_to: none
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 1.0e-4
+max_steps: 12
+lr_scheduler_type: constant
+warmup_steps: 0
+bf16: true
+ddp_timeout: 180000000

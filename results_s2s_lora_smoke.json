@@ -1,0 +1,35 @@
+[
+  {
+    "model": "openbmb/MiniCPM-o-4_5",
+    "path_used": "direct-peft",
+    "status": "pass",
+    "steps_run": 12,
+    "trainable_params": 3833856,
+    "peak_vram_gb": 18.32,
+    "adapter_reloaded": true,
+    "inference_ok": true,
+    "first_loss": 6.6348,
+    "last_loss": 6.9154,
+    "notes": "LLaMA-Factory failed on MiniCPM-o-4_5: bespoke forward(data,**kwargs) re-passes input_ids into inner LLM -> 'multiple values for input_ids'; also bnb-4bit breaks audio-tower native MHA and enable_input_require_grads breaks in-place scatter_. Fallback: LoRA on model.llm (Qwen3) text smoke.",
+    "wall_clock_s": 23,
+    "error": null
+  },
+  {
+    "model": "Qwen/Qwen2.5-Omni-7B",
+    "path_used": "direct-peft",
+    "env": ".venv-qwenomni",
+    "transformers_version": "5.12.1",
+    "status": "pass",
+    "steps_run": 16,
+    "trainable_params": 3833856,
+    "peak_vram_gb": 18.01,
+    "adapter_reloaded": true,
+    "inference_ok": true,
+    "first_loss": 3.3723,
+    "last_loss": 4.1047,
+    "generated": "The sound I hear is a sound that is not a sound. It is a sound that is not a",
+    "notes": "Direct HF+peft smoke. Loaded full Qwen2_5OmniForConditionalGeneration in bf16, disable_talker() to save VRAM, attached LoRA (r=8/a=16, q_proj/v_proj) to the thinker text decoder, trained on tiny text samples with gradient checkpointing, saved+reloaded adapter, ran one text inference through the thinker.",
+    "wall_clock_s": 205,
+    "error": null
+  }
+]

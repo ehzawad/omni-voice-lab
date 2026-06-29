@@ -22,6 +22,17 @@ tmp/
 /*.wav
 /*.mp3
 
+# Bulk regenerable fine-tune eval audio (keep only a small base-vs-LoRA A/B sample).
+# Regenerate with ft/orpheus_baseline.py; prompt text is in the committed manifests.
+examples/bench/bn_lora_[0-9]*.wav
+examples/bench/bn_*20_*.wav
+
+# Fine-tune training data tensors (regenerate with ft/prep_orpheus_data.py)
+data/
+
+# Cloned third-party training frameworks (clone on demand)
+third_party/
+
 # Model weights and caches (downloaded on first use from the Hugging Face Hub)
 *.safetensors
 *.bin

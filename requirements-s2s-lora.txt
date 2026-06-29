@@ -1,0 +1,17 @@
+# Single-network S2S LoRA smoke envs. Two envs because the two models need different
+# transformers versions.
+#
+# Full-duplex MiniCPM-o (.venv-lora-lf): transformers 4.51.0 (matches MiniCPM-o inference pin).
+#   uv venv --python 3.12 .venv-lora-lf
+#   uv pip install --python .venv-lora-lf/bin/python torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#   uv pip install --python .venv-lora-lf/bin/python transformers==4.51.0 peft==0.18.1 \
+#       accelerate==1.14.0 bitsandbytes==0.49.2 datasets soundfile librosa decord av qwen-omni-utils jiwer
+#   (LLaMA-Factory was cloned but is NOT required: MiniCPM-o LoRA uses direct HF+PEFT.)
+#
+# Turn-based Qwen2.5-Omni (.venv-qwenomni): needs transformers >= 4.52 for the qwen2_5_omni arch.
+#   uv venv --python 3.12 .venv-qwenomni
+#   uv pip install --python .venv-qwenomni/bin/python torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#   uv pip install --python .venv-qwenomni/bin/python "transformers>=4.57" peft accelerate \
+#       bitsandbytes qwen-omni-utils soundfile librosa

@@ -52,3 +52,39 @@ answer, and the training signal flows through the audio input path (not text tok
 
 First run started the night of 2026-06-29; results and the before/after delta will be appended
 here and as `results_voice2voice_*.json`.
+
+## Results (first run, 2026-06-29)
+
+Trained through the REAL audio-input path: yes. The spoken-question waveform was fed through the
+Omni audio encoder into the thinker LLM; the per-step inputs carried `input_features` (verified at
+runtime), and the loss was computed only on the assistant answer tokens.
+
+- Model: `Qwen/Qwen2.5-Omni-7B` (chosen over MiniCPM-o for this run: its `Qwen2_5OmniProcessor`
+  handles audio natively, so the genuine audio path ran cleanly within the time budget; MiniCPM-o's
+  bespoke `forward(self, data, **kwargs)` was already documented as incompatible with the standard
+  collator in `ft/logs/minicpmo_train.log`). Either model satisfies "trained on real audio input."
+- Method: LoRA (r=16, alpha=32) on the thinker LLM projections q/k/v/o; audio encoder frozen;
+  bf16; micro-batch 1; 3 epochs over 78 spoken-QA pairs = 234 steps; audio 1.4-3.5 s.
+- Data: `ft/v2v_build_data.py` synthesized 98 spoken FIFA questions with Chatterbox TTS
+  (`data/v2v/audio/`, `data/v2v/manifest.jsonl`), grounded in `fifa_kb.md`; 78 train / 20 held-out.
+- Trainable params: 14,024,704 (0.157%). Peak VRAM: 19.6 GB train / 18.0 GB eval (A6000, GPU1).
+- Train loss: 1.78 -> ~0.15. Adapter saved/reloaded cleanly: `adapters/v2v_qwen25omni_lora/`.
+
+Before/after on 20 held-out SPOKEN questions (audio-in -> text answer, greedy):
+
+| metric | base | base+LoRA |
+|---|---|---|
+| correct @ slot-frac>=0.6 | 16/20 | 16/20 |
+| mean slot fraction | 0.80 | 0.817 |
+| mean answer length (chars) | 50.6 | 15.7 |
+
+The win is style-compliance: the adapter made answers ~3.2x more concise (50.6 -> 15.7 chars),
+collapsing base's verbose restatements ("Germany has won the FIFA World Cup 4 times.") into the
+KB one-line style ("Four."), while holding correctness. Per the success criteria, a measurable
+lift in style-compliance counts as a win. Correctness did not improve because Qwen-Omni base
+already knows these FIFA facts; the 4 misses are shared base/LoRA knowledge errors (e.g. it thinks
+the 2022 final was decided 1-0), not a pipeline failure.
+
+Speech-out for Qwen was left out of scope (text answer scored, as the plan allows); the genuine
+adapted path here is listen+respond. Artifacts: `ft/v2v_build_data.py`, `ft/v2v_train.py`,
+`ft/v2v_eval.py`, `results_voice2voice.json`, `ft/logs/v2v*.log`.

@@ -1,0 +1,386 @@
+{
+  "model": "Qwen/Qwen2.5-Omni-7B",
+  "path": "Qwen2.5-Omni-7B thinker LoRA, audio-in -> text-answer",
+  "trained_through_audio": true,
+  "steps": 234,
+  "trainable_params": 14024704,
+  "peak_vram_gb": 18.04,
+  "train_peak_vram_gb": 19.58,
+  "final_train_loss": 0.1461,
+  "base_correct": 16,
+  "lora_correct": 16,
+  "base_mean_slot_frac": 0.8,
+  "lora_mean_slot_frac": 0.817,
+  "n_heldout": 20,
+  "speech_out": "not generated for Qwen (text answer scored; talker out of scope)",
+  "notes": "Genuine audio-input path: spoken-question waveform -> Omni audio encoder (frozen) -> thinker LLM (LoRA). Slot match = years/numbers/entities from KB ground-truth answer present in model answer.",
+  "error": null,
+  "eval_seconds": 37.4,
+  "base_rows": [
+    {
+      "id": 78,
+      "q": "How many World Cup titles does Germany have?",
+      "gt": "Four.",
+      "pred": "Germany has won the FIFA World Cup 4 times.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 79,
+      "q": "What is the width of the goal in metres?",
+      "gt": "7.32 metres.",
+      "pred": "The width of the goal in meters is 7.32.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 80,
+      "q": "What shape result decided the 2022 World Cup?",
+      "gt": "A penalty shootout.",
+      "pred": "The 2022 FIFA World Cup was decided by a 1-0 victory.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 81,
+      "q": "Which award goes to the top scorer of a World Cup?",
+      "gt": "The Golden Boot.",
+      "pred": "The top scorer of a World Cup is awarded the Golden Boot.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 82,
+      "q": "What is the maximum half-time interval?",
+      "gt": "15 minutes.",
+      "pred": "The maximum halftime interval in FIFA is 15 minutes.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 83,
+      "q": "How many minutes of extra time in a knockout?",
+      "gt": "30 minutes.",
+      "pred": "In a knockout match, there are two periods of extra time, each lasting 15 minutes.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 84,
+      "q": "Who won the Women's World Cup in 2023?",
+      "gt": "Spain.",
+      "pred": "The United States won the Women's World Cup in 2023.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 85,
+      "q": "What confederation is CONCACAF?",
+      "gt": "North, Central America and the Caribbean.",
+      "pred": "CONCACAF is the Confederation of North, Central America and Caribbean Association Football.",
+      "frac": 1.0,
+      "hit": 4,
+      "tot": 4
+    },
+    {
+      "id": 86,
+      "q": "What does OFC stand for in football regions?",
+      "gt": "Oceania.",
+      "pred": "OFC stands for Oceania Football Confederation.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 87,
+      "q": "How many players minimum before a match is abandoned?",
+      "gt": "Fewer than seven.",
+      "pred": "A match is abandoned if there are fewer than 7 players available on either side.",
+      "frac": 1.0,
+      "hit": 3,
+      "tot": 3
+    },
+    {
+      "id": 88,
+      "q": "When was the Women's World Cup first held?",
+      "gt": "In 1991.",
+      "pred": "The Women's World Cup was first held in 1991.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 89,
+      "q": "Which country won four Women's World Cups?",
+      "gt": "The United States.",
+      "pred": "The United States won four Women's World Cups.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 90,
+      "q": "What year was FIFA founded?",
+      "gt": "1904.",
+      "pred": "FIFA was founded in 1904.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 91,
+      "q": "In which city is FIFA based?",
+      "gt": "Zurich.",
+      "pred": "FIFA is based in Zurich, Switzerland.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 92,
+      "q": "How many Laws of the Game exist?",
+      "gt": "Seventeen.",
+      "pred": "There are 17 laws of the game.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 93,
+      "q": "Who keeps the Laws of the Game?",
+      "gt": "IFAB.",
+      "pred": "The referee keeps the laws of the game.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 94,
+      "q": "What card equals two yellows?",
+      "gt": "A red card.",
+      "pred": "A red card equals two yellows.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 95,
+      "q": "How many goals is a hat-trick?",
+      "gt": "Three.",
+      "pred": "A hat-trick is three goals scored in a single match.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 96,
+      "q": "What is the height of a football goal?",
+      "gt": "2.44 metres.",
+      "pred": "The height of a football goal is 2.44 meters.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 97,
+      "q": "How far from goal is the penalty area edge?",
+      "gt": "16.5 metres.",
+      "pred": "The penalty area edge is 16.5 meters (18 yards) from the goal line.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    }
+  ],
+  "lora_rows": [
+    {
+      "id": 78,
+      "q": "How many World Cup titles does Germany have?",
+      "gt": "Four.",
+      "pred": "Four.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 79,
+      "q": "What is the width of the goal in metres?",
+      "gt": "7.32 metres.",
+      "pred": "7.32.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 80,
+      "q": "What shape result decided the 2022 World Cup?",
+      "gt": "A penalty shootout.",
+      "pred": "A 4-4-2.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 81,
+      "q": "Which award goes to the top scorer of a World Cup?",
+      "gt": "The Golden Boot.",
+      "pred": "The Golden Boot.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 82,
+      "q": "What is the maximum half-time interval?",
+      "gt": "15 minutes.",
+      "pred": "30 minutes.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 83,
+      "q": "How many minutes of extra time in a knockout?",
+      "gt": "30 minutes.",
+      "pred": "30 minutes, in two 15-minute halves.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 84,
+      "q": "Who won the Women's World Cup in 2023?",
+      "gt": "Spain.",
+      "pred": "England.",
+      "frac": 0.0,
+      "hit": 0,
+      "tot": 1
+    },
+    {
+      "id": 85,
+      "q": "What confederation is CONCACAF?",
+      "gt": "North, Central America and the Caribbean.",
+      "pred": "North and Central America, and the Caribbean.",
+      "frac": 1.0,
+      "hit": 4,
+      "tot": 4
+    },
+    {
+      "id": 86,
+      "q": "What does OFC stand for in football regions?",
+      "gt": "Oceania.",
+      "pred": "Oceania.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 87,
+      "q": "How many players minimum before a match is abandoned?",
+      "gt": "Fewer than seven.",
+      "pred": "Seven.",
+      "frac": 0.333,
+      "hit": 1,
+      "tot": 3
+    },
+    {
+      "id": 88,
+      "q": "When was the Women's World Cup first held?",
+      "gt": "In 1991.",
+      "pred": "In 1991.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 89,
+      "q": "Which country won four Women's World Cups?",
+      "gt": "The United States.",
+      "pred": "The United States.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 90,
+      "q": "What year was FIFA founded?",
+      "gt": "1904.",
+      "pred": "1904.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 91,
+      "q": "In which city is FIFA based?",
+      "gt": "Zurich.",
+      "pred": "Zurich, Switzerland.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 92,
+      "q": "How many Laws of the Game exist?",
+      "gt": "Seventeen.",
+      "pred": "Seventeen.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 93,
+      "q": "Who keeps the Laws of the Game?",
+      "gt": "IFAB.",
+      "pred": "The International Football Association Board, IFAB.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 94,
+      "q": "What card equals two yellows?",
+      "gt": "A red card.",
+      "pred": "A red card.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 95,
+      "q": "How many goals is a hat-trick?",
+      "gt": "Three.",
+      "pred": "Three.",
+      "frac": 1.0,
+      "hit": 1,
+      "tot": 1
+    },
+    {
+      "id": 96,
+      "q": "What is the height of a football goal?",
+      "gt": "2.44 metres.",
+      "pred": "2.44 metres.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    },
+    {
+      "id": 97,
+      "q": "How far from goal is the penalty area edge?",
+      "gt": "16.5 metres.",
+      "pred": "16.5 metres, or 11 yards.",
+      "frac": 1.0,
+      "hit": 2,
+      "tot": 2
+    }
+  ],
+  "base_avg_answer_chars": 50.6,
+  "lora_avg_answer_chars": 15.7,
+  "style_effect": "LoRA made answers ~3.2x more concise (51->16 chars), matching the KB one-line answer style; correctness held."
+}

@@ -30,7 +30,7 @@ low-resource-language fallback.
 | FIFA domain expert via RAG | Working | Spoken question -> ASR -> retrieval -> grounded spoken answer |
 | Bengali (modular) | Working | MiniCPM-o brain (Bengali text) + dedicated Bengali TTS |
 | Live full-duplex server (mic, barge-in) | Not built | The hard real-time serving layer is future work |
-| Single-net vs modular head-to-head benchmark | In progress | See `docs/` for the model/voice/dataset surveys |
+| Single-net vs modular benchmark | Done (measured) | Numbers in `docs/COMPARISON.md`; raw `results_a.json`/`results_b.json` |
 
 Honest caveat on real time: at int4 on a 24 GB card the real-time factor is about 1.12, meaning
 generation is slightly slower than playback and drifts behind on long answers. A larger GPU,
@@ -92,6 +92,42 @@ Bengali (modular: MiniCPM-o brain plus Bengali TTS):
 
 ```bash
 .venv/bin/python bengali_voice.py --audio examples/in_bn_question.wav --out bn.wav
+```
+
+## Benchmark: single-network vs modular
+
+A measured head-to-head on a fixed set of spoken English prompts, same reference voice, same GPU.
+Full results, per-prompt tables, and caveats are in `docs/COMPARISON.md`.
+
+Headline (means over the warm prompts):
+
+| metric | Pipeline A (single-network) | Pipeline B (modular) |
+| --- | --- | --- |
+| First-audio latency | about 2.3 s | about 11.7 s |
+| Real-time factor | about 1.45 | about 2.43 |
+| ASR word error rate | 0.0 | 0.12 |
+| Peak VRAM | about 14.8 GB | about 5.9 GB |
+
+Pipeline A streams output, so it reaches first audio quickly. Pipeline B here is batch (full ASR,
+then full answer, then full synthesis), which is the main reason its first-audio latency is higher;
+a streaming TTS would narrow that. Important fairness caveat: Pipeline B's brain was downsized to
+Qwen2.5-3B (from the intended Qwen3-8B) because the shared machine left only about 14.8 GB free, so
+the VRAM and answer-quality columns are not brain-parity. See `docs/COMPARISON.md` for the details.
+
+Reproduce:
+
+```bash
+.venv-modular/bin/python pipeline_b_bench.py   # modular env
+.venv/bin/python pipeline_a_bench.py           # single-network env
+.venv-modular/bin/python make_comparison.py    # writes docs/COMPARISON.md
+```
+
+Pipeline B uses a second environment (Chatterbox pins transformers 5.2.0, which conflicts with
+MiniCPM-o's pinned 4.51.0):
+
+```bash
+uv venv --python 3.12 .venv-modular
+uv pip install --python .venv-modular/bin/python -r requirements-modular.txt
 ```
 
 ## Why Bengali speech output fails on the single network

@@ -1,0 +1,49 @@
+{
+  "pipeline": "A-single-network (MiniCPM-o 4.5 int4, streaming)",
+  "rows": [
+    {
+      "id": "p1_capital",
+      "asr_hyp": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "t_asr": 5.775,
+      "first_audio_s": 3.497,
+      "total_s": 5.316,
+      "out_audio_s": 2.6,
+      "rtf": 2.045,
+      "vram_gb": 14.44
+    },
+    {
+      "id": "p2_fifa",
+      "asr_hyp": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the Men's World Cup a total of five times. The victories occurred in the following years and tournaments, with two wins back-to-back during their dominant 1970s era under coach Carlos Alberto Parreira, who is sometimes credited as a key figure in Brazil's success, particularly noted for his role as co-manager alongside Vicente Feola during that period.",
+      "t_asr": 2.592,
+      "first_audio_s": 2.405,
+      "total_s": 38.221,
+      "out_audio_s": 25.56,
+      "rtf": 1.495,
+      "vram_gb": 14.77
+    },
+    {
+      "id": "p3_math",
+      "asr_hyp": "What is twelve multiplied by eight?",
+      "answer": "Twelve multiplied by eight is 96.",
+      "t_asr": 1.34,
+      "first_audio_s": 2.328,
+      "total_s": 4.248,
+      "out_audio_s": 2.92,
+      "rtf": 1.455,
+      "vram_gb": 14.76
+    },
+    {
+      "id": "p4_advice",
+      "asr_hyp": "I feel nervous before a job interview, can you give me one quick tip?",
+      "answer": "Absolutely! Take a few slow, deep breaths before walking into the interview to help calm your nerves.",
+      "t_asr": 2.505,
+      "first_audio_s": 2.208,
+      "total_s": 9.614,
+      "out_audio_s": 6.84,
+      "rtf": 1.406,
+      "vram_gb": 14.78
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "pipeline": "B-modular (faster-whisper base.en [CPU] + Qwen/Qwen2.5-3B-Instruct int4 + Chatterbox)",
+  "brain": "Qwen/Qwen2.5-3B-Instruct",
+  "rows": [
+    {
+      "id": "p1_capital",
+      "asr_hyp": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "t_asr": 1.506,
+      "t_llm": 2.513,
+      "t_tts": 28.439,
+      "first_audio_s": 32.459,
+      "total_s": 32.459,
+      "out_audio_s": 2.32,
+      "rtf": 13.991,
+      "vram_gb": 5.66
+    },
+    {
+      "id": "p2_fifa",
+      "asr_hyp": "How many times has Brazil won the men's world cup and rich ears?",
+      "answer": "Brazil has won the men's World Cup five times. Rich ears is not related to soccer achievements.",
+      "t_asr": 1.543,
+      "t_llm": 2.18,
+      "t_tts": 8.135,
+      "first_audio_s": 11.858,
+      "total_s": 11.858,
+      "out_audio_s": 7.36,
+      "rtf": 1.611,
+      "vram_gb": 5.87
+    },
+    {
+      "id": "p3_math",
+      "asr_hyp": "What is 12 multiplied by 8?",
+      "answer": "12 multiplied by 8 is 96.",
+      "t_asr": 3.125,
+      "t_llm": 1.292,
+      "t_tts": 5.05,
+      "first_audio_s": 9.466,
+      "total_s": 9.466,
+      "out_audio_s": 3.04,
+      "rtf": 3.114,
+      "vram_gb": 5.87
+    },
+    {
+      "id": "p4_advice",
+      "asr_hyp": "I feel nervous before a job interview. Can you give me one quick tip?",
+      "answer": "Take deep breaths and focus on your strengths\u2014this can help calm nerves.",
+      "t_asr": 4.015,
+      "t_llm": 1.76,
+      "t_tts": 7.93,
+      "first_audio_s": 13.705,
+      "total_s": 13.705,
+      "out_audio_s": 5.36,
+      "rtf": 2.557,
+      "vram_gb": 5.87
+    }
+  ]
+}

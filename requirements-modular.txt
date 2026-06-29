@@ -1,0 +1,22 @@
+# Pipeline B (modular: ASR + LLM + TTS) dependencies. Separate venv from the single-network
+# pipeline because Chatterbox pins transformers==5.2.0 while MiniCPM-o pins 4.51.0.
+#
+#   uv venv --python 3.12 .venv-modular
+#   uv pip install --python .venv-modular/bin/python -r requirements-modular.txt
+#
+# torch 2.6.0 here comes from the CUDA 12.4 wheels (Chatterbox's pin). setuptools<81 is needed
+# because resemble-perth imports pkg_resources.
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0
+chatterbox-tts==0.1.7
+transformers==5.2.0
+faster-whisper==1.2.1
+bitsandbytes==0.49.2
+accelerate==1.14.0
+jiwer==4.0.0
+soundfile==0.14.0
+librosa==0.11.0
+resemble-perth==1.0.1
+setuptools<81

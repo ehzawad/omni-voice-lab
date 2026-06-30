@@ -1,14 +1,14 @@
 # Bengali TTS LoRA env (.venv-tts-lora): orpheus-bangla (Llama+SNAC) fine-tune + eval.
-# Separate venv from inference; parler-tts pulls transformers==4.46.1 which is fine here.
+# Separate venv from inference; parler-tts pulls transformers==5.0.0rc3 which is fine here.
 #
 #   uv venv --python 3.12 .venv-tts-lora
 #   uv pip install --python .venv-tts-lora/bin/python torch==2.8.0 torchaudio==2.8.0 \
 #       --index-url https://download.pytorch.org/whl/cu128
 #   uv pip install --python .venv-tts-lora/bin/python -r requirements-tts-lora.txt
 
-torch==2.8.0
+torch==2.12.1
 torchaudio==2.8.0
-transformers==4.46.1
+transformers==5.0.0rc3
 peft==0.19.1
 accelerate
 bitsandbytes

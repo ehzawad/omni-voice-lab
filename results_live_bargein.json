@@ -1,0 +1,35 @@
+{
+  "mode": "plain",
+  "quant": "int4",
+  "chunk_ms": 50,
+  "turns": [
+    {
+      "turn": 1,
+      "session_id": "hervoice-live-f48080d018cc",
+      "prefill_chunks": 2,
+      "audio_chunks_out": 1,
+      "barge_in": false
+    },
+    {
+      "turn": 2,
+      "session_id": "hervoice-live-4a51020c721b",
+      "prefill_chunks": 6,
+      "audio_chunks_out": 7,
+      "barge_in": true
+    }
+  ],
+  "session_ids": [
+    "hervoice-live-f48080d018cc",
+    "hervoice-live-4a51020c721b"
+  ],
+  "unique_session_ids": 2,
+  "turn1_audio_chunks": 1,
+  "turn2_audio_chunks": 7,
+  "barge_in_fired": true,
+  "turn1_generation_cancelled": true,
+  "cancel_to_new_turn_ms": 1537.5,
+  "peak_vram_gb": 14.48,
+  "n_events": 25,
+  "assertions_passed": true,
+  "failures": []
+}

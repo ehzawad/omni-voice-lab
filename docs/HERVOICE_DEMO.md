@@ -200,6 +200,43 @@ English precisely because the Talker is trained on English speech. Sample output
 streaming with first-audio latency (~2.2 s, RTF ~1.12 at int4): `minicpm_stream.py`.
 
 Honest scope: this is turn-based, uses a cloned reference voice (MiniCPM-o has no usable default
-voice), and the live full-duplex/mic serving layer is still not built (the same gap for any
-language). The point proven here is architectural: ASR + LLM + TTS as one network, end to end,
+voice). The point proven here is architectural: ASR + LLM + TTS as one network, end to end,
 for English.
+
+## English: live, interruptible voice (barge-in)
+
+The remaining gap for English was the live serving layer. It is now built as a **VAD-gated
+streaming turn loop with barge-in** on the single resident MiniCPM-o 4.5 process. It is **not**
+true simultaneous full-duplex (Omni-Flow) and **not** sub-second; it is turn-based streaming that
+you can interrupt. State machine: `IDLE -> USER_SPEAKING -> GENERATING -> INTERRUPTING ->
+RESETTING -> USER_SPEAKING`. Silero VAD (32 ms frames) detects turn boundaries; while the
+assistant speaks, VAD keeps watching, and new user speech sets a `cancel_event` that preempts
+generation between streamed chunks, then `reset_session(reset_token2wav_cache=False)` starts a
+fresh turn (new session id, voice cache kept).
+
+`hervoice/live/`: `engine.py` (LiveVoiceEngine), `turn_detector.py` (Silero VAD), `loop.py`
+(state machine), `simulate_bargein.py` (headless proof), `local_mic_client.py` (your machine).
+
+Because this box has no microphone or speaker, the loop is proven by a **file-driven barge-in
+simulation** that runs the real engine: feed a wav in real-time chunks, inject a second wav as a
+simulated interruption during generation, and assert that turn-1 generation is cancelled and a new
+session begins.
+
+```
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
+  .venv/bin/python -m hervoice.live.simulate_bargein --out-dir runs/live_bargein_smoke
+```
+
+Measured (RTX A5000, int4), from `results_live_bargein.json`:
+
+- assertions passed; barge-in fired; turn-1 generation cancelled; 2 distinct session ids.
+- cancel -> new-turn ~1.5 s; first audio ~2.4 s; peak VRAM ~14.5 GB (plain), ~15.7 GB (live-RAG).
+- live-RAG mode also passes (ASR -> retrieve -> grounded spoken answer), adding ~2-3 s before first
+  audio for the retrieval step.
+
+Honest scope: cancellation is **cooperative** — `streaming_generate` yields ~1 s TTS chunks and the
+cancel is checked at the chunk boundary, so the in-flight chunk finishes before bailing (not a hard
+mid-chunk kill). MiniCPM-o's streaming audio encoder needs ~1 s-aligned prefill chunks, so the loop
+aggregates mic frames to 1000 ms. Live mic capture and playback are confirmable only on your machine:
+run `hervoice/live/local_mic_client.py` (needs `sounddevice`/PortAudio, which the headless box lacks);
+it uses the identical engine and loop the simulation exercises.

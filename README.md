@@ -30,6 +30,15 @@ single-network voice-to-voice the project originally aimed for; it works for Eng
 omni Talker speaks English (the only reason Bengali must be modular). Run `./hervoice_en.sh`;
 measured on the A5000 a spoken FIFA question grounds to the correct spoken answer (~14.2 GB, ~19 s).
 
+English also has a **live, interruptible** path (`hervoice/live/`): a VAD-gated streaming turn loop
+with barge-in on the resident MiniCPM-o process. While the assistant speaks, Silero VAD keeps
+listening; new user speech preempts generation and starts a fresh turn. It is turn-based streaming
+with interruption, not sub-second true full-duplex. Because this box has no mic, it is proven by a
+file-driven barge-in simulation (`python -m hervoice.live.simulate_bargein`, passes: turn-1
+generation cancelled, new session, ~1.5 s cancel-to-new-turn, ~14.5 GB; numbers in
+`results_live_bargein.json`); talk to it with a real mic via `hervoice/live/local_mic_client.py`.
+See `docs/HERVOICE_DEMO.md`.
+
 Measured from a real run: peak VRAM about 10.7 GB; self-check re-ASR CER about 0.08; the Bengali
 TTS adapter cuts CER from 0.640 to 0.498 on FLEURS-20 (a re-ASR intelligibility proxy, not human
 naturalness). Honest limits: the 3B brain is weak on open-domain Bengali facts and can code-switch,

@@ -172,3 +172,34 @@ avoid changing shared reuse code; flagged for the next pass.
   `answer_rag_offtopic.wav` — outputs
 
 No Hugging Face token is stored in this repo.
+
+## English: the single-network path
+
+The Bengali path above is modular because the omni Talker cannot speak Bengali. English does not
+have that wall, so for English HerVoice runs as a true **single end-to-end network**: MiniCPM-o 4.5
+does ASR (its audio encoder), reasoning (the shared LLM "Thinker"), and speech-out (the "Talker" +
+vocoder) in ONE model — audio in, audio out, no text-to-separate-TTS handoff. RAG grounding is the
+only external add-on.
+
+```
+./hervoice_en.sh examples/in_fifa_question.wav runs/hervoice_en/answer.wav
+```
+
+Measured on the RTX A5000 (one real run):
+
+```
+[ASR]    How many times has Brazil won the men's World Cup and which years?
+[ANSWER] Brazil has won the FIFA Men's World Cup a record five times: 1958, 1962, 1970, 1994, and 2002.
+[wrote]  answer.wav   generation ~19 s   peak VRAM ~14.2 GB
+```
+
+One model produced the transcript and the spoken answer; the answer is grounded and correct.
+This is the single-network voice-to-voice that the project originally aimed for — it works for
+English precisely because the Talker is trained on English speech. Sample output:
+`examples/hervoice_en_fifa_answer.wav`. Plain (non-RAG) single-network turns: `minicpm_voice.py`;
+streaming with first-audio latency (~2.2 s, RTF ~1.12 at int4): `minicpm_stream.py`.
+
+Honest scope: this is turn-based, uses a cloned reference voice (MiniCPM-o has no usable default
+voice), and the live full-duplex/mic serving layer is still not built (the same gap for any
+language). The point proven here is architectural: ASR + LLM + TTS as one network, end to end,
+for English.

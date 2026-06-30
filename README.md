@@ -24,6 +24,12 @@ large-v3 (Bengali ASR) -> Qwen2.5-3B-Instruct (brain) -> orpheus-bangla + the `o
 adapter + SNAC (Bengali speech-out, the measured win) -> optional gated cross-lingual RAG over a
 knowledge base. It uses **sequential GPU residency** so it stays well under 24 GB.
 
+For **English**, HerVoice runs as a true **single end-to-end network**: MiniCPM-o 4.5 does ASR,
+reasoning, and speech-out in one model (audio in, audio out), grounded by RAG. This is the
+single-network voice-to-voice the project originally aimed for; it works for English because the
+omni Talker speaks English (the only reason Bengali must be modular). Run `./hervoice_en.sh`;
+measured on the A5000 a spoken FIFA question grounds to the correct spoken answer (~14.2 GB, ~19 s).
+
 Measured from a real run: peak VRAM about 10.7 GB; self-check re-ASR CER about 0.08; the Bengali
 TTS adapter cuts CER from 0.640 to 0.498 on FLEURS-20 (a re-ASR intelligibility proxy, not human
 naturalness). Honest limits: the 3B brain is weak on open-domain Bengali facts and can code-switch,

@@ -240,3 +240,31 @@ mid-chunk kill). MiniCPM-o's streaming audio encoder needs ~1 s-aligned prefill 
 aggregates mic frames to 1000 ms. Live mic capture and playback are confirmable only on your machine:
 run `hervoice/live/local_mic_client.py` (needs `sounddevice`/PortAudio, which the headless box lacks);
 it uses the identical engine and loop the simulation exercises.
+
+### Stress test and known issues
+
+An adversarial stress harness (`hervoice/live/stress_test.py`) runs the resident engine through
+endurance, barge-in edge cases, malformed input, and cancellation races. It exists to FIND bugs, not
+to prove green; full results are in `results_live_stress.json`. Sustained testing found and fixed two
+HIGH-severity bugs the happy-path simulation missed:
+
+- Short final prefill chunk crashed the streaming audio encoder. The leftover after 1 s-aligned
+  chunking is `total_samples % 16000` (uniform 0-15999), so roughly 6 percent of normal turns ended
+  with a chunk short enough to underflow the audio pooler (`RuntimeError`). Fixed by padding short
+  chunks before prefill.
+- An engine exception on the consumer thread killed the loop silently (no error, an undrained queue,
+  effective deadlock). Fixed: `run()` now catches it, surfaces a `frame_error`, and recovers to a
+  clean LISTENING state.
+
+Clean under stress: 14-turn endurance held VRAM flat (about 16.1 GB, +31 MB over 14 turns, no leak),
+threads flat at 4 (no zombies after rapid barge-ins), no cross-turn contamination (same prompt gives
+the same answer; alternating prompts give correct distinct answers), malformed inputs (silence, 0.2 s,
+noise, tone) produced zero fabricated turns, and a mid-chunk cancel left the next turn's audio finite
+and non-silent.
+
+Known limitation (honest): a barge-in that begins within the first ~1 s guard window of a SHORT (1-2 s)
+response can be missed at the default `barge_guard_chunks=1`. The guard exists to stop the VAD
+self-triggering on the assistant's own audio when there is no echo cancellation. A deferred-fire now
+catches guard-window barge-ins on longer responses, but the sub-guard case on a short response is a
+tradeoff: with client-side echo cancellation (or headphones), set `barge_guard_chunks=0` for immediate
+barge-in. Real-mic barge-in feel and VAD robustness to room noise are confirmable only on your machine.

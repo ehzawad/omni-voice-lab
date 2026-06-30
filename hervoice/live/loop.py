@@ -80,6 +80,8 @@ class LiveLoop:
         self._gen_done = threading.Event()
         self._gen_chunks = 0
         self._gen_sid = None
+        # a barge-in onset seen during the guard window, fired once the guard clears
+        self._pending_guarded_onset = False
         self._cancel_set_ts = None
 
     # --------------------------------------------------------------- public API
@@ -101,7 +103,15 @@ class LiveLoop:
                     self._join_generation(cancel=False)
                 self._emit("loop_stop", state=self.state)
                 return
-            self._on_frame(payload)
+            try:
+                self._on_frame(payload)
+            except Exception as e:
+                # An engine/model exception on the consumer thread (e.g. a malformed
+                # prefill chunk) must NOT silently kill this loop -- otherwise the
+                # loop becomes a black hole that swallows frames forever. Surface it
+                # and recover to a clean LISTENING state, abandoning the broken turn.
+                self._emit("frame_error", state=self.state, error=repr(e))
+                self._recover_after_error()
 
     # --------------------------------------------------------------- frame path
     def _on_frame(self, frame):
@@ -117,6 +127,14 @@ class LiveLoop:
         for ev in self.detector.process(frame):
             self._on_vad_event(ev)
 
+        # a barge-in onset that arrived during the guard window fires once the guard
+        # clears (the latched VAD will not re-emit SPEECH_START for the same utterance)
+        if (self.state == "GENERATING" and self._pending_guarded_onset
+                and self._gen_chunks >= self.barge_guard_chunks):
+            self._pending_guarded_onset = False
+            self._barge_in()
+            return
+
         # natural end of a turn: generation worker finished on its own
         if self.state == "GENERATING" and self._gen_done.is_set():
             self._finish_turn_natural()
@@ -129,9 +147,17 @@ class LiveLoop:
                 # BARGE-IN (only after the turn has actually started speaking)
                 if self._gen_chunks >= self.barge_guard_chunks:
                     self._barge_in()
+                else:
+                    # Onset during the guard window: Silero latches triggered=True and
+                    # will not re-emit SPEECH_START for this same utterance. Remember it
+                    # and fire once the guard clears (handled in _on_frame).
+                    self._pending_guarded_onset = True
         elif ev.kind == VadEvent.SPEECH_END:
             if self.state == "USER_SPEAKING":
                 self._end_user_turn()
+            elif self.state == "GENERATING":
+                # guarded speech ended before the guard cleared -> not a real barge-in
+                self._pending_guarded_onset = False
 
     # --------------------------------------------------------------- user turn
     def _begin_user_turn(self, prev_ctx):
@@ -217,6 +243,7 @@ class LiveLoop:
         self._gen_done.clear()
         self._gen_chunks = 0
         self._gen_sid = sid
+        self._pending_guarded_onset = False
         self._reset_barge_ctx()
         self.detector.reset()            # fresh VAD state to watch for barge-in
         self._emit("generation_start", turn=self._turn_idx, session_id=sid)
@@ -275,6 +302,28 @@ class LiveLoop:
         if self._gen_thread is not None:
             self._gen_thread.join(timeout=10.0)
         self._gen_thread = None
+
+    def _recover_after_error(self):
+        """Abandon the current (broken) turn and return to a clean listening state
+        without tearing down the loop. Best-effort; never raises."""
+        try:
+            if self._gen_thread is not None:
+                self._join_generation(cancel=True)
+        except Exception:
+            self._gen_thread = None
+        self._buf, self._buf_samples = [], 0
+        self._turn_audio_all = []
+        self._reset_barge_ctx()
+        try:
+            self.detector.reset()
+        except Exception:
+            pass
+        try:
+            self.engine.reset_for_new_turn()
+        except Exception:
+            pass
+        self.state = "IDLE"
+        self._emit("recovered", state=self.state)
 
     def _finish_turn_natural(self):
         self._join_generation(cancel=False)

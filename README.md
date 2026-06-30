@@ -37,7 +37,10 @@ with interruption, not sub-second true full-duplex. Because this box has no mic,
 file-driven barge-in simulation (`python -m hervoice.live.simulate_bargein`, passes: turn-1
 generation cancelled, new session, ~1.5 s cancel-to-new-turn, ~14.5 GB; numbers in
 `results_live_bargein.json`); talk to it with a real mic via `hervoice/live/local_mic_client.py`.
-See `docs/HERVOICE_DEMO.md`.
+An adversarial stress harness (`hervoice/live/stress_test.py`) found and fixed two HIGH-severity bugs
+(a ~6%-of-turns encoder crash on short chunks; a silent consumer-thread deadlock) that the happy path
+missed; endurance is clean (flat VRAM, no leaks/zombies/contamination). One known limitation remains
+(sub-1 s barge-in on short answers; tunable via `barge_guard_chunks`). See `docs/HERVOICE_DEMO.md`.
 
 Measured from a real run: peak VRAM about 10.7 GB; self-check re-ASR CER about 0.08; the Bengali
 TTS adapter cuts CER from 0.640 to 0.498 on FLEURS-20 (a re-ASR intelligibility proxy, not human

@@ -1,0 +1,57 @@
+{
+  "harness": "hervoice/live/stress_test.py",
+  "model": "openbmb/MiniCPM-o-4_5 int4, GPU0",
+  "run_logs": ["runs/live_stress/stress.log", "runs/live_stress/full_run.out", "runs/live_stress/verify_run.out"],
+  "bugs": [
+    {
+      "id": "shortchunk-encoder-crash",
+      "severity": "HIGH",
+      "status": "FIXED",
+      "scenario": "barge-in / normal end-of-turn with a short trailing audio chunk",
+      "observed": "A final user prefill chunk shorter than ~1024 samples (~64 ms), following at least one full 1 s chunk in the same turn, makes MiniCPM-o's streaming audio encoder raise 'RuntimeError: Given input size: (4096x1x3/4). Calculated output size: (...x0). Output size is too small' inside audio_avg_pooler (nn.AvgPool1d, audio_pool_step=5 needs >=5 conv frames). Raised on the LiveLoop consumer thread inside _end_user_turn -> engine.prefill_user_chunk.",
+      "expected": "Any leftover/empty end-of-turn buffer is handled gracefully; the turn still prefills and generates.",
+      "why_it_matters": "The leftover after 1 s-aligned chunking is total_samples % 16000 (uniform 0..15999), so ~1024/16000 ~= 6% of NORMAL turns end with a crashing leftover. The explicit np.zeros(512) empty-buffer fallback in _end_user_turn ALSO crashes whenever it follows a full chunk. Barge-in-seeded short follow-ups hit it often. Observed live: crashed scenario 2c and rapid-barge 2d in the first full run.",
+      "reproduction": "CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 .venv/bin/python -m hervoice.live.stress_test --scenarios shortchunk",
+      "evidence": {
+        "deterministic_probe": "full=1 last=0/256/512 -> input (4096x1x3) FAIL; last=800 -> (4096x1x4) FAIL; last>=1024 -> OK",
+        "live_traceback": "loop.py:176 _end_user_turn -> engine.py:102 prefill_user_chunk -> modeling_minicpmo.py:623 audio_avg_pooler -> avg_pool1d RuntimeError",
+        "config": "audio_pool_step=5"
+      },
+      "fix": "engine.prefill_user_chunk pads any chunk shorter than MIN_PREFILL_SAMPLES=1600 (0.1 s) with trailing zeros before streaming_prefill. Verified: scenario 5 loop_alive=True, frame_error=None, second_turn_accepted=True; rapid-barge 2d now completes 6 turns with 0 crashes."
+    },
+    {
+      "id": "consumer-thread-death-on-engine-exception",
+      "severity": "HIGH",
+      "status": "FIXED",
+      "scenario": "any engine/model exception raised on the consumer thread (e.g. the short-chunk crash)",
+      "observed": "LiveLoop.run() called _on_frame() with no try/except. Any exception killed the consumer thread permanently. The loop then silently accepted submit_frame() into a queue nobody drains: no error surfaced, no recovery, effective deadlock. The harness's own waits just timed out -- the crash did NOT register as a failure, proving how silent this is.",
+      "expected": "An engine error abandons the broken turn, is surfaced as an event, and the loop returns to LISTENING and keeps serving.",
+      "reproduction": "Trigger any prefill exception (e.g. --scenarios shortchunk on UNPATCHED engine); observe 'Exception in thread loop-run' and a hung loop.",
+      "evidence": {"first_run": "stderr 'Exception in thread loop-run' Traceback at loop.py:104 run -> _on_frame; harness reported 0 bugs for that scenario despite the dead thread."},
+      "fix": "loop.run() wraps _on_frame in try/except, emits 'frame_error', and calls _recover_after_error() (joins/cancels worker, clears buffers/barge-ctx, resets detector + engine session, returns to IDLE, emits 'recovered'). Verified scenario 5 survives + accepts a second turn."
+    },
+    {
+      "id": "bargein-guard-latch",
+      "severity": "MEDIUM",
+      "status": "LEFT_FOR_TRIAGE (design decision)",
+      "scenario": "user starts speaking during the barge-guard window (before the assistant's first audio chunk)",
+      "observed": "With barge_guard_chunks=1, a SPEECH_START fired while _gen_chunks < guard is dropped in _on_vad_event (no action). But TurnDetector.process() already latched self.triggered=True for that speech, so it will NOT emit another SPEECH_START for the same continuous utterance. Once _gen_chunks reaches the guard there is no event left to fire the barge-in, so the interruption is missed for the WHOLE utterance until the user goes silent and speaks again.",
+      "expected": "A barge-in that begins slightly before the first audio chunk should still interrupt once the guard clears.",
+      "reproduction": "CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 .venv/bin/python -m hervoice.live.stress_test --scenarios bargein  (case 2a: barge_fired=False, n_turns=1)",
+      "evidence": {"case_2a": "barge_fired=False n_turns=1 across both full_run and verify_run"},
+      "why_left": "The guard exists to stop the VAD self-triggering on the assistant's OWN audio echoed back through the mic. Re-firing a latched onset after the guard clears could re-introduce that self-trigger on a real (non-headless) mic. Correct fix depends on the client's echo-cancellation / playback-gating assumptions -> a design decision. Suggested direction: track a 'pending guarded onset' and, while GENERATING and still detector.triggered after the guard clears, fire barge-in ONCE -- but only if the client guarantees AEC."
+    }
+  ],
+  "scenarios_stressed_clean": {
+    "endurance": "14 turns, one process. GPU0 nvidia-smi VRAM flat ~16116 MB after warmup (base t2-4=16087, tail=16117, growth +31 MB); torch peak 14.71 GB stable. Threads flat at 4. NO cross-turn contamination: 3x same prompt -> identical 'The capital of France is Paris.'; alternating prompts -> correct distinct answers (Paris vs Brazil World Cup five times). Per-turn latency stable, proportional to answer length, not growing.",
+    "malformed": "silence_2s, clip_0p2s (0.2 s), white_noise (2 s), tone_440 (2 s) -> 0 turns each (VAD did not fabricate a turn). long_60s -> 1 turn, correct answer, no encoder crash.",
+    "bargein_2b_double": "2 back-to-back barge-ins -> 3 turns, 3 unique session_ids.",
+    "bargein_2d_rapid_zombie_hunt": "rapid barge-ins -> threads 4->4->4, no zombie accumulation; 6 turns after fix with 0 crashes.",
+    "race_4a_post_cancel_audio": "mid-chunk cancel then follow-up turn -> follow-up audio finite, non-silent (3 chunks, max_abs ~0.8). token2wav re-clones from base each generate, so a mid-chunk GeneratorExit does NOT corrupt the next turn's audio."
+  },
+  "needs_real_mic_to_confirm": [
+    "guard-latch barge-in behaviour under real acoustic echo (whether assistant playback leaks into the mic VAD).",
+    "barge-in latency / crossfade as perceived through a real speaker (client-side concern).",
+    "VAD threshold robustness on real room/far-field noise (synthetic non-speech did not false-trigger, but real noise profiles differ)."
+  ]
+}

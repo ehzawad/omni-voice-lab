@@ -94,11 +94,20 @@ class LiveVoiceEngine:
                                self.ref_audio, VC_SUFFIX]}],
             tokenizer=self.tok)
 
+    # MiniCPM-o's streaming audio encoder pools with audio_pool_step=5: a chunk
+    # that produces < 5 conv frames makes avg_pool1d output length 0 and raises
+    # RuntimeError ("Output size is too small"), which (uncaught) kills the loop's
+    # consumer thread. Empirically a trailing chunk < 1024 samples (after at least
+    # one full chunk in the same turn) triggers it. Pad short chunks to a safe
+    # floor so a tiny leftover / empty end-of-turn buffer can never crash.
+    MIN_PREFILL_SAMPLES = 1600       # 0.1 s @ 16k; comfortably above the 1024 cliff
+
     def prefill_user_chunk(self, sid, audio16k, is_last):
         """Push one 16k mono user audio chunk (is_last=True only on final chunk)."""
         a = np.asarray(audio16k, dtype=np.float32).reshape(-1)
-        if a.size == 0:
-            a = np.zeros(512, dtype=np.float32)
+        if a.size < self.MIN_PREFILL_SAMPLES:
+            a = np.concatenate([a, np.zeros(self.MIN_PREFILL_SAMPLES - a.size,
+                                            dtype=np.float32)])
         self.model.streaming_prefill(
             session_id=sid,
             msgs=[{"role": "user", "content": [a]}],

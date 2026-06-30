@@ -32,7 +32,7 @@ low-resource-language fallback.
 | Live full-duplex server (mic, barge-in) | Not built | The hard real-time serving layer is future work |
 | Single-net vs modular benchmark | Done (measured) | Numbers in `docs/COMPARISON.md`; raw `results_a.json`/`results_b.json` |
 | LoRA training pipelines | Proven | Full-duplex (MiniCPM-o) and turn-based (Qwen2.5-Omni) smokes pass; `docs/FINETUNE_S2S_LORA.md` |
-| Bengali TTS fine-tune | Done (no quality win) | Pipeline works end to end; naive FLEURS LoRA did not improve the base. Honest write-up in `docs/FINETUNE_BENGALI_TTS.md` |
+| Bengali TTS fine-tune | Measured win | LoRA on clean IndicVoices-R corpus cuts CER 22% / WER 16% vs base on FLEURS-20 (FLEURS-data LoRA did not); `docs/FINETUNE_BENGALI_TTS.md` |
 
 Honest caveat on real time: at int4 on a 24 GB card the real-time factor is about 1.12, meaning
 generation is slightly slower than playback and drifts behind on long answers. A larger GPU,

@@ -74,6 +74,49 @@ A genuine improvement needs clean, in-domain, single-/consistent-speaker Bengali
 is exactly the gated IndicVoices-R corpus on the Indic Parler-TTS base. The highest-value next
 step is obtaining that access and rerunning this same harness against it.
 
+## Update: clean-corpus run (IndicVoices-R) — the data hypothesis, confirmed
+
+After gated access was granted, the exact same harness was rerun with the base swapped only on
+the data side: training on a filtered subset of AI4Bharat IndicVoices-R Bengali (a purpose-built
+Indic TTS corpus) instead of FLEURS. Filters: `cer<=0.05`, `snr>=20`, duration 2-12 s, capped at
+12 clips/speaker; 1500 clips, ~192 min, 244 speakers. Same LoRA (r=16, lr 5e-5, 600 steps),
+same orpheus-bangla base, same eval.
+
+Note on data handling: IndicVoices-R audio is 48 kHz and often stereo. An early run hung for
+hours inside `librosa.resample` on the 2-D arrays; `audio_to_tokens` now mono-izes and resamples
+on-GPU (bounded, fast). The `cer` field is stored as a string (`'tensor(0.0194)'`) and is parsed
+accordingly.
+
+Before/after on the SAME FLEURS-20 held-out set used above (apples-to-apples):
+
+| run | valid-rate | CER | WER |
+| --- | ---: | ---: | ---: |
+| base (orpheus-bangla) | 0.95 | 0.640 | 1.080 |
+| LoRA on FLEURS (earlier) | 0.95 | 0.645 | 1.033 |
+| LoRA on IndicVoices-R | 0.95 | **0.498** | **0.910** |
+
+In-domain IVR-test-20 (its own base measured on the same set):
+
+| run | valid-rate | CER | WER |
+| --- | ---: | ---: | ---: |
+| base | 0.95 | 0.470 | 0.867 |
+| LoRA on IndicVoices-R | 0.90 | 0.460 | 0.890 |
+
+Reading it straight:
+
+- On the comparable FLEURS-20 set, training on clean IndicVoices-R data is a real, measurable
+  win: CER 0.640 -> 0.498 (-22% relative), WER 1.080 -> 0.910 (-16%), valid-rate unchanged. The
+  FLEURS-trained LoRA did not move CER at all (0.645); the IVR-trained LoRA did. Same model, same
+  recipe, same eval - only the training corpus changed. The corpus was the lever, exactly as the
+  diagnosis above predicted.
+- In-domain IVR-test-20 is roughly neutral (CER -2%, WER +3%, valid-rate 0.95 -> 0.90). The base
+  is already comparatively decent there; the gain manifests as better generalization on the
+  harder FLEURS distribution rather than on in-domain text.
+
+This closes the loop: the earlier negative result was a data problem, not a pipeline problem.
+Raw numbers: `results_bn_tts_ivrlora_f20.json`, `results_bn_tts_base_i20.json`,
+`results_bn_tts_ivrlora_i20.json`. Reproduce with `ft/run_ivr_pipeline.sh` (gated access required).
+
 ## What this proves regardless
 
 The training-and-evaluation pipeline is real and reproducible: SNAC encode -> Orpheus sequence

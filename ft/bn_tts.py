@@ -87,10 +87,21 @@ def codes_to_audio(snac_model, code_list, device):
 
 # ---------- SNAC-encode an audio waveform -> 7-per-frame token ids (for training labels) ----------
 def audio_to_tokens(snac_model, audio_np, in_sr, device):
-    import librosa
-    if in_sr != SNAC_SR:
-        audio_np = librosa.resample(audio_np, orig_sr=in_sr, target_sr=SNAC_SR)
-    wav = torch.tensor(audio_np, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+    # Robust to multi-channel / 48kHz / odd sr inputs (IndicVoices-R is 48kHz, sometimes stereo).
+    # Use GPU resampling (bounded, fast) instead of librosa/soxr which can spin on 2-D arrays.
+    import torchaudio
+    a = np.asarray(audio_np, dtype=np.float32)
+    if a.ndim > 1:                                   # -> mono
+        a = a.mean(axis=1) if a.shape[0] >= a.shape[-1] else a.mean(axis=0)
+    a = a.reshape(-1)
+    if not (8000 <= int(in_sr) <= 48000):
+        raise ValueError(f"implausible sample rate {in_sr}")
+    if a.size > int(in_sr) * 30 or a.size < int(in_sr) * 0.2:
+        raise ValueError("audio length out of bounds")
+    wav = torch.tensor(a, dtype=torch.float32, device=device).reshape(1, -1)
+    if int(in_sr) != SNAC_SR:
+        wav = torchaudio.functional.resample(wav, int(in_sr), SNAC_SR)
+    wav = wav.unsqueeze(0)                           # [1,1,T]
     with torch.no_grad():
         codes = snac_model.encode(wav)  # list of 3 tensors: [1,T], [1,2T], [1,4T]
     l1 = codes[0][0].tolist(); l2 = codes[1][0].tolist(); l3 = codes[2][0].tolist()

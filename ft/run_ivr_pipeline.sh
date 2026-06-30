@@ -3,7 +3,7 @@
 # Launched by the resource watcher once RAM+GPU are sufficient.
 set -euo pipefail
 cd /mnt/sdb/arafat/hervoice
-export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=1
+export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=${GPU:-0}
 PY=".venv-tts-lora/bin/python -u"
 
 echo "[driver] $(date) prep IndicVoices-R subset"

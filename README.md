@@ -8,6 +8,37 @@ single 24 GB GPU.
 This repository is a working set of validated components and experiments, not a finished
 product. Status is stated honestly per component below.
 
+## HerVoice: the assembled assistant
+
+The components below come together in **HerVoice**, a Bengali-first, local, turn-based
+voice-to-voice assistant: ask a question in spoken Bengali and it transcribes, thinks, and speaks
+a Bengali answer back, on a single RTX A5000, in one command.
+
+```
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
+  .venv-hervoice/bin/python -m hervoice
+```
+
+It is a **modular** pipeline (not a single end-to-end network, not full-duplex): faster-whisper
+large-v3 (Bengali ASR) -> Qwen2.5-3B-Instruct (brain) -> orpheus-bangla + the `orpheus_bn_ivr_lora`
+adapter + SNAC (Bengali speech-out, the measured win) -> optional gated cross-lingual RAG over a
+knowledge base. It uses **sequential GPU residency** so it stays well under 24 GB.
+
+Measured from a real run: peak VRAM about 10.7 GB; self-check re-ASR CER about 0.08; the Bengali
+TTS adapter cuts CER from 0.640 to 0.498 on FLEURS-20 (a re-ASR intelligibility proxy, not human
+naturalness). Honest limits: the 3B brain is weak on open-domain Bengali facts and can code-switch,
+so the strongest path is RAG-grounded (a Bengali FIFA question grounds to the correct answer); plain
+mode runs but answer quality is brain-limited. Full setup, CLI, manifest, and limitations are in
+`docs/HERVOICE_DEMO.md`.
+
+```bash
+uv venv --python 3.12 .venv-hervoice
+uv pip install --python .venv-hervoice/bin/python torch==2.8.0 torchaudio==2.8.0 \
+    --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python .venv-hervoice/bin/python transformers==4.51.0 peft accelerate snac \
+    faster-whisper==1.2.1 sentencepiece protobuf soundfile librosa jiwer
+```
+
 ## What this is
 
 Two architectures are explored and compared:
@@ -33,6 +64,7 @@ low-resource-language fallback.
 | Single-net vs modular benchmark | Done (measured) | Numbers in `docs/COMPARISON.md`; raw `results_a.json`/`results_b.json` |
 | LoRA training pipelines | Proven | Full-duplex (MiniCPM-o) and turn-based (Qwen2.5-Omni) smokes pass; `docs/FINETUNE_S2S_LORA.md` |
 | Bengali TTS fine-tune | Measured win | LoRA on clean IndicVoices-R corpus cuts CER 22% / WER 16% vs base on FLEURS-20 (FLEURS-data LoRA did not); `docs/FINETUNE_BENGALI_TTS.md` |
+| HerVoice assistant (`python -m hervoice`) | Working | Bengali-first voice-to-voice from the proven parts; one command, ~10.7 GB; RAG-grounded answers correct; `docs/HERVOICE_DEMO.md` |
 
 Honest caveat on real time: at int4 on a 24 GB card the real-time factor is about 1.12, meaning
 generation is slightly slower than playback and drifts behind on long answers. A larger GPU,

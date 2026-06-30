@@ -18,11 +18,11 @@ def load_chunks(path=KB_PATH):
     return chunks
 
 class FifaRetriever:
-    def __init__(self, device="cuda"):
+    def __init__(self, device="cuda", kb_path=None):
         self.tok = AutoTokenizer.from_pretrained(EMB_ID, padding_side="left")
         self.model = AutoModel.from_pretrained(EMB_ID, torch_dtype=torch.float16).to(device).eval()
         self.device = device
-        self.chunks = load_chunks()
+        self.chunks = load_chunks(kb_path or KB_PATH)
         self.emb = self._embed(self.chunks, is_query=False)
 
     def _last_token_pool(self, last_hidden, attn_mask):

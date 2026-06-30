@@ -1,0 +1,22 @@
+# HerVoice assistant env (.venv-hervoice): hosts the whole Bengali pipeline in one process.
+# transformers 4.51 is required (Qwen3-Embedding is qwen3 arch; the 4.46.1 in .venv-tts-lora
+# cannot load it). orpheus (Llama), Qwen2.5-3B (qwen2), faster-whisper, snac all run here too.
+#
+#   uv venv --python 3.12 .venv-hervoice
+#   uv pip install --python .venv-hervoice/bin/python torch==2.8.0 torchaudio==2.8.0 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#   uv pip install --python .venv-hervoice/bin/python -r requirements-hervoice.txt
+
+torch==2.8.0
+torchaudio==2.8.0
+transformers==4.51.0
+peft
+accelerate
+snac
+faster-whisper==1.2.1
+sentencepiece
+protobuf
+soundfile
+librosa
+jiwer
+numpy

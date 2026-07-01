@@ -57,6 +57,10 @@ uv pip install --python .venv-hervoice/bin/python transformers==4.51.0 peft acce
     faster-whisper==1.2.1 sentencepiece protobuf soundfile librosa jiwer
 ```
 
+New to the concepts? `system-knowledge.md` is a learning guide that maps the papers behind this
+system (single-network omni, neural audio codecs, LoRA, RAG, VAD/barge-in) to the exact files here
+and the measured results, organized as a reading path.
+
 ## What this is
 
 Two architectures are explored and compared:

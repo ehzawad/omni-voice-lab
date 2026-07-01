@@ -8,6 +8,12 @@ doubles as the "why" behind the design decisions.
 Everything here is honest about limits. Where a number is quoted it was measured on the project's
 hardware (1x RTX A5000 24 GB, sometimes a shared RTX A6000); where something is unproven it says so.
 
+The mechanism details below were read from the primary papers, not paraphrased from abstracts: the
+SNAC (2410.14411), LoRA (2106.09685), MiniCPM-o 4.5 (2604.27393), and IndicVoices-R (2409.05356) PDFs
+were read directly (the specific sections are cited inline), and each is tied to the exact file it
+governs. CosyVoice 2, Moshi, Whisper, RAG, and Qwen3-Embedding are summarized from their papers and
+model cards. The point of the exercise: a paper fact next to the line of code it explains.
+
 ---
 
 ## 0. The one-paragraph mental model
@@ -67,9 +73,19 @@ So "multiple encoders/decoders but one network" is exactly right. This is the **
 design used by Qwen-Omni and MiniCPM-o, and the closely related single-transformer design of Moshi.
 
 Papers to read for this:
-- MiniCPM-o 4.5, *Towards Real-Time Full-Duplex Omni-Modal Interaction* (arXiv 2604.27393). Its key
-  idea is **Omni-Flow**: aligning all modalities on one shared time axis so the model can listen and
-  speak at once and decide, ~once per second, whether to talk.
+- MiniCPM-o 4.5, *Towards Real-Time Full-Duplex Omni-Modal Interaction* (arXiv 2604.27393; read
+  Section 2 for the architecture, Section 3 for Omni-Flow). Concretely, its ~9B all-differentiable
+  stack is: (1) **encoders** -- a SigLIP ViT for vision and a **Whisper-Medium (0.3B) encoder** for
+  audio in chunk-based streaming (50 feature tokens/s, MLP-compressed 5x to **10 audio tokens/s**
+  into the LLM, to save token budget); (2) the **Qwen3-8B backbone** ("Thinker") that generates text
+  and hidden states -- notably it only decodes in the *text* domain at ~3-4 steps/s (human speech
+  rate), delegating audio to keep language quality intact; (3) the **Talker**: a lightweight ~0.3B
+  Llama *speech-token decoder* that takes the backbone's summed hidden states plus each text token and
+  emits discrete "S3" speech tokens, then a **streaming flow-matching decoder** turns those into a
+  waveform **conditioned on a reference-audio clip**. That last fact is why the code must call
+  `init_token2wav_cache(ref_audio)` and why "there is no usable default voice" -- the vocoder is
+  reference-conditioned by design (`hervoice/live/engine.py`, `minicpm_stream.py`). And it is why the
+  Talker is language-bound: it was trained on English/Chinese S3 speech tokens (section 4).
 - Qwen3-Omni (arXiv 2509.17765) -- the Thinker-Talker split stated plainly.
 - Moshi (arXiv 2410.00037) -- a single transformer over audio codec tokens with an "inner
   monologue" (it predicts text time-aligned with the audio it generates), reaching ~200 ms latency.
@@ -127,14 +143,21 @@ Where: `hervoice/live/engine.py` (MiniCPM-o talker, streaming), `ft/orpheus_base
 An LLM can only emit discrete tokens, so audio must be quantized into a token stream and back. This
 is a **neural audio codec**. Understanding it demystifies `ft/bn_tts.py` completely.
 
-- **SNAC** -- *Multi-Scale Neural Audio Codec* (arXiv 2410.14411). It encodes 24 kHz audio into a
-  **hierarchy of 3 codebooks at different time resolutions**: for every 1 code in layer 1 there are
-  2 in layer 2 and 4 in layer 3 (coarse-to-fine). Orpheus packs one audio frame as **7 tokens**
-  (1 + 2 + 4), and adds a fixed **offset of 128266** so the audio codes live in a region of the
-  Llama vocabulary that does not collide with text tokens. Every one of those facts is implemented
-  literally in `ft/bn_tts.py` -- `redistribute()` (the 7 -> 3-layer un-interleave), `audio_to_tokens()`
-  (the inverse, with the per-position 4096 offsets), and the `AUDIO_OFFSET = 128266` constant. Read
-  that file next to the SNAC paper and it will click.
+- **SNAC** -- *Multi-Scale Neural Audio Codec* (arXiv 2410.14411; read Section 3 + 4.1). It extends
+  Residual Vector Quantization (RVQ, the cascade of codebooks in SoundStream/EnCodec/DAC) by letting
+  each codebook operate at a **different temporal resolution**: at quantizer i the residual is
+  average-pooled down by a factor W_i, looked up, then upsampled back. Coarse codebooks therefore
+  cover more time per token (structure/prosody), fine ones less (detail). The **24 kHz speech codec**
+  Orpheus uses has RVQ strides **[4, 2, 1]**, giving three token streams at **~12 / 23 / 47 Hz** --
+  a **1 : 2 : 4** ratio. That ratio *is* the "7 tokens per audio frame" (1 coarse + 2 mid + 4 fine),
+  and each codebook holds **4096 entries (12-bit)** at an effective **~0.98 kbps** (a purely
+  convolutional ~19.8 M-param model). Every one of those exact numbers is in `ft/bn_tts.py`:
+  `redistribute()` un-interleaves the 7 flat tokens back into the 1/2/4 layers, `audio_to_tokens()`
+  does the inverse with the per-position `+ i*4096` offsets, and codes sit at `AUDIO_OFFSET = 128266`
+  so they occupy a slice of the Llama vocabulary that does not collide with text. Read that file next
+  to the paper's Section 4.1 and the strides/offsets line up one-to-one. (SNAC beats EnCodec/DAC on
+  speech at a *lower* bitrate -- ViSQOL 4.14, MUSHRA 88.4 at 0.98 kbps -- which is why an LLM-TTS can
+  afford to model its tokens autoregressively.)
 - **Mimi** is Moshi's codec (same purpose, different design), and **FSQ** is CosyVoice 2's. Same
   idea: continuous audio <-> discrete tokens an LLM can model.
 
@@ -147,6 +170,22 @@ naive resample can hang -- exactly what happened and was fixed in `ft/bn_tts.py`
 - **Streaming**: it starts speaking before it has finished thinking (lower latency to first sound).
 - **Full-duplex**: it listens and speaks at the same time and can be interrupted (barge-in). This
   is what MiniCPM-o's Omni-Flow and Moshi's dual-stream aim for.
+
+How **Omni-Flow** actually does it (MiniCPM-o paper Section 3): time-division multiplexing. The
+interaction is cut into fixed time windows; each window's env-visual, env-audio, and out-stream tokens
+are concatenated into one sequence `g_k = [v_k; a_k; o_k]` fed to a normal causal LLM, so within each
+window the model first ingests what it just perceived, then decides *whether* to speak (a binary
+Listen/Speak control token -- their ablation shows deciding *whether* separately from *what* is more
+stable) and *what* to say, keeping text and speech time-aligned (their "TAIL" interleaving stops the
+text running ahead of playback). Two facts from that paper directly shaped this repo's code:
+- Their ablation finds a **1.0 s window is the sweet spot** (0.2 s / 0.1 s degrade). That is exactly
+  why the live loop aggregates mic audio to `CHUNK_MS = 1000` before prefill -- sub-second chunks also
+  underflow the audio encoder (the crash section 9 fixed). The "~1 Hz speak/no-speak decision" is this
+  1 s window plus the Listen/Speak token.
+- Because the model itself decides whether to output each window, native Omni-Flow **reduces reliance
+  on an external VAD**. This repo does *not* run native Omni-Flow; it drives MiniCPM-o as a turn loop,
+  so it *adds back* Silero VAD to detect turn boundaries -- an honest, simpler substitute for the
+  harder full-duplex controller.
 
 This repo's live English loop (`hervoice/live/`) is honestly a **VAD-gated streaming turn loop with
 barge-in**, not proven simultaneous full-duplex. The serving pieces:
@@ -189,9 +228,20 @@ data changed -- and the result is the cleanest lesson in the repo:
   about 22% better** on the same held-out set; WER about 16% better.
 
 IndicVoices-R: *Unlocking a Massive Multilingual Multi-speaker Speech Corpus for Scaling Indian TTS*
-(arXiv 2409.05356), 1,704 hours across 22 Indian languages. Filtered subset prep is in
-`ft/prep_ivr_data.py`; the write-up is `docs/FINETUNE_BENGALI_TTS.md`. The corpus was the lever, not
-the architecture -- exactly what an earlier code review predicted.
+(arXiv 2409.05356; read Section 1 + 3). The details explain *why* it worked where FLEURS did not:
+- It is **derived from IndicVoices, an ASR corpus**, then **restored to TTS quality** by denoising
+  and speech-enhancement models -- trained on English but applied cross-lingually (the same
+  cross-lingual-generalization trick that shows up again in the RAG embedder, section 7).
+- **1,704 hours, 10,496 speakers, 22 languages, 93.25% extempore** (spontaneous, not read) speech.
+  Both properties matter: huge speaker diversity and natural prosody are what a TTS needs, whereas
+  FLEURS is read news speech from few speakers.
+- Because it came from restored ASR audio, each clip carries **quality metadata (SNR, C50, and a
+  per-clip CER)** -- which is exactly what `ft/prep_ivr_data.py` filters on (`cer <= 0.05`,
+  `snr >= 20`, 2-12 s, speaker-capped) to keep only clean, well-aligned clips.
+- The paper's own recipe is: **fine-tune an English-pretrained TTS (VoiceCraft) on IV-R** to unlock
+  Indian languages. This repo did the same move with a different base (Orpheus), which is why the
+  result transfers. The corpus was the lever, not the architecture -- exactly what an earlier code
+  review predicted. Prep: `ft/prep_ivr_data.py`; write-up: `docs/FINETUNE_BENGALI_TTS.md`.
 
 Honest ceiling: CER ~0.498 still means roughly half the characters are off, and naturalness was never
 measured (no human listening test). "Better," not "solved."
@@ -205,10 +255,21 @@ Adaptation of Large Language Models* (arXiv 2106.09685). Core idea: a weight upd
 has low "intrinsic rank," so instead of changing a big matrix W you learn two small matrices B and A
 and use `W + (alpha/r) * B*A`. You train ~0.1-1% of the parameters.
 
-In this repo: `ft/train_orpheus_lora.py` uses rank `r=16`, `alpha=32`, targets the Llama projections
-`q,k,v,o,gate,up,down` -- **24.3M trainable params, 0.73% of the model**, peak VRAM ~9.8 GB, ~16 min.
-The original paper targeted only q and v; targeting all attention + MLP projections (as here) is the
-common modern choice. `alpha/r` is a scaling knob; `alpha = 2r` is a typical setting.
+From the paper (Section 4.1, read it -- it is only two pages): for a frozen weight `W0`, the update is
+`W0 + BA` with `B` (d x r) and `A` (r x k) and rank `r << min(d,k)`; the forward pass is just
+`h = W0 x + (alpha/r) B A x`. `A` is random-Gaussian and `B` is zero-initialized, so `BA = 0` at the
+start (training begins as the exact base model). `alpha/r` is a fixed scaling knob the authors "set to
+the first r we try and do not tune." The memory win is precise: because `W0` is frozen you keep **no
+optimizer states** for it, cutting VRAM by up to ~2/3, and the saved adapter is tiny (they report a
+~10,000x smaller checkpoint than the full model). The paper deliberately adapted **only attention
+weights** (`Wq, Wk, Wv, Wo`) and left MLP/LayerNorm "to future work."
+
+In this repo: `ft/train_orpheus_lora.py` uses `r=16`, `alpha=32` (so `alpha/r = 2` scaling), and
+targets `q,k,v,o` **plus** the MLP `gate,up,down` -- the common modern choice that goes beyond the
+paper's attention-only default. Result: **24.3 M trainable params (0.73% of the 3.3B model)**, peak
+VRAM ~9.8 GB (the no-optimizer-states win in action), ~16 min, and a **97 MB adapter** versus the
+6.6 GB base (the paper's tiny-checkpoint claim, concretely). QLoRA (arXiv 2305.14314) stacks this on a
+4-bit base so the 8-9B omni models fine-tune inside 24 GB (`docs/FINETUNE_S2S_LORA.md`).
 
 Related: **QLoRA** (arXiv 2305.14314) = LoRA on top of a 4-bit-quantized base model, which is how the
 larger omni models are fine-tuned inside 24 GB (the S2S smokes in `docs/FINETUNE_S2S_LORA.md`).
@@ -297,14 +358,17 @@ The papers describe models; running them on one shared GPU taught the rest:
 
 ## 11. Reading list (start here, in order)
 
-1. LoRA -- arXiv 2106.09685. The fine-tuning idea; short and foundational.
+1. LoRA -- arXiv 2106.09685 (read directly, Section 4). The fine-tuning idea; short and foundational.
 2. Whisper -- arXiv 2212.04356. How robust ASR is trained.
-3. SNAC -- arXiv 2410.14411. Read it next to `ft/bn_tts.py`; audio tokens will click.
-4. CosyVoice 2 -- arXiv 2412.10117. Streaming TTS with flow matching (MiniCPM-o's talker).
-5. MiniCPM-o 4.5 -- arXiv 2604.27393. The single-network omni + Omni-Flow full-duplex.
+3. SNAC -- arXiv 2410.14411 (read directly, Section 3-4). Read next to `ft/bn_tts.py`; the strides
+   [4,2,1] -> 12/23/47 Hz -> 7 tokens/frame and the 4096 codebooks map straight onto the code.
+4. CosyVoice 2 -- arXiv 2412.10117. Streaming TTS with flow matching (MiniCPM-o's talker lineage).
+5. MiniCPM-o 4.5 -- arXiv 2604.27393 (read directly, Section 2-3). Single-network omni + Omni-Flow;
+   the 1.0 s window explains the live loop's `CHUNK_MS`.
 6. Moshi -- arXiv 2410.00037. The purest full-duplex design; the latency frontier.
 7. Qwen3-Omni -- arXiv 2509.17765. Thinker-Talker stated cleanly.
-8. IndicVoices-R -- arXiv 2409.05356. Why the Bengali win was a data story.
+8. IndicVoices-R -- arXiv 2409.05356 (read directly, Section 1+3). Why the Bengali win was a data
+   story; its SNR/C50/CER metadata is what `ft/prep_ivr_data.py` filters on.
 9. RAG -- arXiv 2005.11401. Grounding answers in facts.
 10. QLoRA -- arXiv 2305.14314. Fine-tuning big models in small VRAM.
 

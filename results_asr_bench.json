@@ -1,0 +1,306 @@
+{
+  "benchmark": "English ASR bake-off (4 prompts)",
+  "models": {
+    "sensevoice": {
+      "model_key": "sensevoice",
+      "hf_id": "FunAudioLLM/SenseVoiceSmall",
+      "note": "SenseVoiceSmall, emits language + emotion + audio-event tags",
+      "avg_wer": 0.1603,
+      "avg_cer": 0.1043,
+      "avg_latency_s": 0.198,
+      "avg_rtf": 0.071,
+      "load_vram_gb": 1.15,
+      "rows": [
+        {
+          "id": "p1_capital",
+          "ref": "What is the capital of France?",
+          "hyp": "What is the capital of France?",
+          "raw": "<|en|><|EMO_UNKNOWN|><|Speech|><|withitn|>What is the capital of France?",
+          "features": "tags=en,EMO_UNKNOWN,Speech,withitn",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.525,
+          "audio_s": 2.48,
+          "rtf": 0.212
+        },
+        {
+          "id": "p2_fifa",
+          "ref": "How many times has Brazil won the men's World Cup, and which years?",
+          "hyp": "How many times as Brazil when the men's world Cup and witch yearss.",
+          "raw": "<|en|><|EMO_UNKNOWN|><|Speech|><|withitn|>How many times as Brazil when the men's world Cup and witch yearss.",
+          "features": "tags=en,EMO_UNKNOWN,Speech,withitn",
+          "wer": 0.3077,
+          "cer": 0.0938,
+          "latency_s": 0.105,
+          "audio_s": 4.464,
+          "rtf": 0.024
+        },
+        {
+          "id": "p3_math",
+          "ref": "What is twelve multiplied by eight?",
+          "hyp": "What is 12 multiplied by 8?",
+          "raw": "<|en|><|EMO_UNKNOWN|><|Speech|><|withitn|>What is 12 multiplied by 8?",
+          "features": "tags=en,EMO_UNKNOWN,Speech,withitn",
+          "wer": 0.3333,
+          "cer": 0.3235,
+          "latency_s": 0.09,
+          "audio_s": 2.848,
+          "rtf": 0.032
+        },
+        {
+          "id": "p4_advice",
+          "ref": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "hyp": "I feel nervous before a job interview can you give me one quick tip?",
+          "raw": "<|en|><|EMO_UNKNOWN|><|Speech|><|withitn|>I feel nervous before a job interview can you give me one quick tip?",
+          "features": "tags=en,EMO_UNKNOWN,Speech,withitn",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.072,
+          "audio_s": 4.72,
+          "rtf": 0.015
+        }
+      ]
+    },
+    "paraformer-zh": {
+      "model_key": "paraformer-zh",
+      "hf_id": "funasr/paraformer-zh",
+      "note": "Paraformer (Chinese-first); expected WEAK on English",
+      "avg_wer": 0.1735,
+      "avg_cer": 0.0732,
+      "avg_latency_s": 0.24,
+      "avg_rtf": 0.087,
+      "load_vram_gb": 0.84,
+      "rows": [
+        {
+          "id": "p1_capital",
+          "ref": "What is the capital of France?",
+          "hyp": "what is the capital of friends",
+          "raw": "what is the capital of friends",
+          "features": "",
+          "wer": 0.1667,
+          "cer": 0.1379,
+          "latency_s": 0.683,
+          "audio_s": 2.48,
+          "rtf": 0.275
+        },
+        {
+          "id": "p2_fifa",
+          "ref": "How many times has Brazil won the men's World Cup, and which years?",
+          "hyp": "how many times as brays il when the men's world cup in which years",
+          "raw": "how many times as brays il when the men's world cup in which years",
+          "features": "",
+          "wer": 0.3846,
+          "cer": 0.125,
+          "latency_s": 0.093,
+          "audio_s": 4.464,
+          "rtf": 0.021
+        },
+        {
+          "id": "p3_math",
+          "ref": "What is twelve multiplied by eight?",
+          "hyp": "what is twelve multiplied by eight",
+          "raw": "what is twelve multiplied by eight",
+          "features": "",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.09,
+          "audio_s": 2.848,
+          "rtf": 0.032
+        },
+        {
+          "id": "p4_advice",
+          "ref": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "hyp": "i feel nervous before a job interview can you give me one quictip",
+          "raw": "i feel nervous before a job interview can you give me one quictip",
+          "features": "",
+          "wer": 0.1429,
+          "cer": 0.0299,
+          "latency_s": 0.092,
+          "audio_s": 4.72,
+          "rtf": 0.019
+        }
+      ]
+    },
+    "funasr-nano": {
+      "model_key": "funasr-nano",
+      "hf_id": "FunAudioLLM/Fun-ASR-Nano-2512",
+      "note": "Fun-ASR-Nano-2512, newer LLM-ASR decoder path",
+      "avg_wer": 0.0192,
+      "avg_cer": 0.0039,
+      "avg_latency_s": 0.683,
+      "avg_rtf": 0.2,
+      "load_vram_gb": 2.15,
+      "rows": [
+        {
+          "id": "p1_capital",
+          "ref": "What is the capital of France?",
+          "hyp": "What is the capital of France?",
+          "raw": "What is the capital of France?",
+          "features": "",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.796,
+          "audio_s": 2.48,
+          "rtf": 0.321
+        },
+        {
+          "id": "p2_fifa",
+          "ref": "How many times has Brazil won the men's World Cup, and which years?",
+          "hyp": "How many times has Brazel won the men's world cup and which years?",
+          "raw": "How many times has Brazel won the men's world cup and which years?",
+          "features": "",
+          "wer": 0.0769,
+          "cer": 0.0156,
+          "latency_s": 0.771,
+          "audio_s": 4.464,
+          "rtf": 0.173
+        },
+        {
+          "id": "p3_math",
+          "ref": "What is twelve multiplied by eight?",
+          "hyp": "What is twelve multiplied by eight?",
+          "raw": "What is twelve multiplied by eight?",
+          "features": "",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.406,
+          "audio_s": 2.848,
+          "rtf": 0.143
+        },
+        {
+          "id": "p4_advice",
+          "ref": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "hyp": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "raw": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "features": "",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.761,
+          "audio_s": 4.72,
+          "rtf": 0.161
+        }
+      ]
+    },
+    "qwen3-asr-1.7b": {
+      "model_key": "qwen3-asr-1.7b",
+      "hf_id": "Qwen/Qwen3-ASR-1.7B-hf",
+      "note": "Qwen3-ASR 1.7B, transformers-native, 52 langs + language id",
+      "avg_wer": 0.0192,
+      "avg_cer": 0.0078,
+      "avg_latency_s": 5.736,
+      "avg_rtf": 2.22,
+      "load_vram_gb": 4.0,
+      "rows": [
+        {
+          "id": "p1_capital",
+          "ref": "What is the capital of France?",
+          "hyp": "What is the capital of France?",
+          "raw": "language English<asr_text>What is the capital of France?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 20.561,
+          "audio_s": 2.48,
+          "rtf": 8.291
+        },
+        {
+          "id": "p2_fifa",
+          "ref": "How many times has Brazil won the men's World Cup, and which years?",
+          "hyp": "How many times has Brazil won the men's World Cup in which years?",
+          "raw": "language English<asr_text>How many times has Brazil won the men's World Cup in which years?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0769,
+          "cer": 0.0312,
+          "latency_s": 0.949,
+          "audio_s": 4.464,
+          "rtf": 0.213
+        },
+        {
+          "id": "p3_math",
+          "ref": "What is twelve multiplied by eight?",
+          "hyp": "What is twelve multiplied by eight?",
+          "raw": "language English<asr_text>What is twelve multiplied by eight?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.525,
+          "audio_s": 2.848,
+          "rtf": 0.184
+        },
+        {
+          "id": "p4_advice",
+          "ref": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "hyp": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "raw": "language English<asr_text>I feel nervous before a job interview. Can you give me one quick tip?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.91,
+          "audio_s": 4.72,
+          "rtf": 0.193
+        }
+      ]
+    },
+    "qwen3-asr-0.6b": {
+      "model_key": "qwen3-asr-0.6b",
+      "hf_id": "Qwen/Qwen3-ASR-0.6B-hf",
+      "note": "Qwen3-ASR 0.6B, transformers-native, fast",
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "avg_latency_s": 0.713,
+      "avg_rtf": 0.197,
+      "load_vram_gb": 1.47,
+      "rows": [
+        {
+          "id": "p1_capital",
+          "ref": "What is the capital of France?",
+          "hyp": "What is the capital of France?",
+          "raw": "language English<asr_text>What is the capital of France?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.529,
+          "audio_s": 2.48,
+          "rtf": 0.213
+        },
+        {
+          "id": "p2_fifa",
+          "ref": "How many times has Brazil won the men's World Cup, and which years?",
+          "hyp": "How many times has Brazil won the men's World Cup and which years?",
+          "raw": "language English<asr_text>How many times has Brazil won the men's World Cup and which years?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.906,
+          "audio_s": 4.464,
+          "rtf": 0.203
+        },
+        {
+          "id": "p3_math",
+          "ref": "What is twelve multiplied by eight?",
+          "hyp": "What is twelve multiplied by eight?",
+          "raw": "language English<asr_text>What is twelve multiplied by eight?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.506,
+          "audio_s": 2.848,
+          "rtf": 0.178
+        },
+        {
+          "id": "p4_advice",
+          "ref": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "hyp": "I feel nervous before a job interview. Can you give me one quick tip?",
+          "raw": "language English<asr_text>I feel nervous before a job interview. Can you give me one quick tip?<|im_end|>",
+          "features": "lang=English",
+          "wer": 0.0,
+          "cer": 0.0,
+          "latency_s": 0.91,
+          "audio_s": 4.72,
+          "rtf": 0.193
+        }
+      ]
+    }
+  },
+  "updated": "2026-07-08 16:25:29"
+}

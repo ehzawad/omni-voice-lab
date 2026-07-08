@@ -1,0 +1,41 @@
+{
+  "benchmark": "English ASR bake-off (4 prompts)",
+  "note": "Re-scored from stored hyps. num_norm spells digits as words so ITN/formatting differences (12 vs twelve) are not counted as recognition errors. 4 prompts only.",
+  "models": {
+    "sensevoice": {
+      "raw_wer": 0.1603,
+      "raw_cer": 0.1043,
+      "numnorm_wer": 0.0769,
+      "numnorm_cer": 0.0234,
+      "features": "SenseVoiceSmall, emits language + emotion + audio-event tags"
+    },
+    "paraformer-zh": {
+      "raw_wer": 0.1735,
+      "raw_cer": 0.0732,
+      "numnorm_wer": 0.1735,
+      "numnorm_cer": 0.0732,
+      "features": "Paraformer (Chinese-first); expected WEAK on English"
+    },
+    "funasr-nano": {
+      "raw_wer": 0.0192,
+      "raw_cer": 0.0039,
+      "numnorm_wer": 0.0192,
+      "numnorm_cer": 0.0039,
+      "features": "Fun-ASR-Nano-2512, newer LLM-ASR decoder path"
+    },
+    "qwen3-asr-1.7b": {
+      "raw_wer": 0.0192,
+      "raw_cer": 0.0078,
+      "numnorm_wer": 0.0192,
+      "numnorm_cer": 0.0078,
+      "features": "Qwen3-ASR 1.7B, transformers-native, 52 langs + language id"
+    },
+    "qwen3-asr-0.6b": {
+      "raw_wer": 0.0,
+      "raw_cer": 0.0,
+      "numnorm_wer": 0.0,
+      "numnorm_cer": 0.0,
+      "features": "Qwen3-ASR 0.6B, transformers-native, fast"
+    }
+  }
+}

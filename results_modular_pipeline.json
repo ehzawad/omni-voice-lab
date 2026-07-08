@@ -1,0 +1,31 @@
+{
+  "status": "ok",
+  "input_wav": "examples/in_fifa_question.wav",
+  "asr_model": "qwen3-asr-0.6b",
+  "asr_hf_id": "Qwen/Qwen3-ASR-0.6B-hf",
+  "transcript": "How many times has Brazil won the men's World Cup and which years?",
+  "asr_features": "lang=English",
+  "brain": "Qwen3.5-4B-Q4_K_M.gguf (llama-server)",
+  "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+  "brain_usage": {
+    "completion_tokens": 46,
+    "prompt_tokens": 65,
+    "total_tokens": 111,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "tts_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "output_wav": "runs/modular/pipeline_demo.wav",
+  "tts_status": "ok",
+  "tts_reason": null,
+  "output_audio_s": 12.0,
+  "output_sr": 24000,
+  "output_rms": 0.0677,
+  "latency_s": {
+    "asr": 15.66,
+    "brain": 0.53,
+    "tts": 41.45,
+    "total": 57.64
+  }
+}

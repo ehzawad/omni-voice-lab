@@ -42,6 +42,16 @@ An adversarial stress harness (`hervoice/live/stress_test.py`) found and fixed t
 missed; endurance is clean (flat VRAM, no leaks/zombies/contamination). One known limitation remains
 (sub-1 s barge-in on short answers; tunable via `barge_guard_chunks`). See `docs/HERVOICE_DEMO.md`.
 
+The `hervoice/live/` path above simulates turn-taking with an external VAD. For the real thing there is
+now a **native full-duplex** demo (`hervoice/duplex/`) built on **Moshi** (`kyutai/moshiko-pytorch-bf16`,
+CC-BY): one autoregressive model streams the user's audio and its own audio in parallel and decides when
+to speak, back-channel, and stop -- turn-taking is inside the network, with **no VAD and no state machine
+in our code**. Proven headlessly by stepping Moshi's 12.5 Hz loop over a wav: the model chose to start
+speaking, produced a correct inner-monologue answer, and kept speaking on its own into the trailing
+silence; peak VRAM ~16.9 GB on the A5000 (`results_duplex.json`, `hervoice/duplex/README.md`). Talk to it
+live with `python -m moshi.server`. English-only, single voice; NVIDIA PersonaPlex is a gated drop-in
+upgrade on the same Moshi stack.
+
 Measured from a real run: peak VRAM about 10.7 GB; self-check re-ASR CER about 0.08; the Bengali
 TTS adapter cuts CER from 0.640 to 0.498 on FLEURS-20 (a re-ASR intelligibility proxy, not human
 naturalness). Honest limits: the 3B brain is weak on open-domain Bengali facts and can code-switch,
@@ -82,7 +92,7 @@ low-resource-language fallback.
 | Voice cloning from a reference clip | Working | A reference clip is required; there is no usable default voice |
 | FIFA domain expert via RAG | Working | Spoken question -> ASR -> retrieval -> grounded spoken answer |
 | Bengali (modular) | Working | MiniCPM-o brain (Bengali text) + dedicated Bengali TTS |
-| Live full-duplex server (mic, barge-in) | Not built | The hard real-time serving layer is future work |
+| Native full-duplex (Moshi) | Demonstrated | `hervoice/duplex/`; model-internal turn-taking, no VAD; headless proof + `moshi.server` for live mic; `results_duplex.json` |
 | Single-net vs modular benchmark | Done (measured) | Numbers in `docs/COMPARISON.md`; raw `results_a.json`/`results_b.json` |
 | LoRA training pipelines | Proven | Full-duplex (MiniCPM-o) and turn-based (Qwen2.5-Omni) smokes pass; `docs/FINETUNE_S2S_LORA.md` |
 | Bengali TTS fine-tune | Measured win | LoRA on clean IndicVoices-R corpus cuts CER 22% / WER 16% vs base on FLEURS-20 (FLEURS-data LoRA did not); `docs/FINETUNE_BENGALI_TTS.md` |

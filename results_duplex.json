@@ -1,0 +1,17 @@
+{
+  "peak_vram_gb": 16.85,
+  "peak_vram_torch_alloc_gb": 17.43,
+  "frames_stepped": 181,
+  "model_spoke_frames": 17,
+  "model_spoke_frames_during_user_audio": 9,
+  "model_spoke_frames_during_trailing_silence": 8,
+  "user_stream_frames": 56,
+  "trailing_silence_frames": 125,
+  "first_model_audio_frame": 5,
+  "frame_rate_hz": 12.5,
+  "frame_ms": 80.0,
+  "inner_monologue_text": "there! How is it going? Brazil has won the World Cup 5 times.",
+  "uses_external_vad": false,
+  "model": "kyutai/moshiko-pytorch-bf16",
+  "notes": "Native full-duplex: a single autoregressive Moshi model models the user audio stream and its own audio stream in parallel and emits a time-aligned inner-monologue text stream. Turn-taking is decided inside the network at 12.5 Hz. No Silero/webrtcvad/energy gate and no turn-taking controller exist in hervoice/duplex/. 'first_model_audio_frame' = first frame the model's inner monologue emitted a real word, i.e. the frame the MODEL chose to start speaking. out_audio_rms in frame_trace.jsonl is descriptive logging only and gates nothing."
+}

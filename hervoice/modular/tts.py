@@ -71,6 +71,72 @@ def synth(text, out_path, ref_audio: str = DEFAULT_REF, ref_text: str | None = N
             "rms": round(rms, 4), "latency_s": round(dt, 3), "status": "ok"}
 
 
+def synth_stream(text, out_prefix, ref_audio: str = DEFAULT_REF, ref_text: str | None = None,
+                 language: str = "English"):
+    """Sentence-chunked streaming synth: split `text`, synthesize each sentence with the resident
+    model, write each chunk wav (`out_prefix_00.wav`, `_01.wav`, ...) AS SOON AS it is ready.
+
+    Reuses synth() verbatim per chunk -- so every chunk keeps the same empty-text / degenerate-audio
+    guards. A chunk that fails its guard is recorded as tts_failed and skipped (no fabrication) and
+    does NOT abort the rest. Returns a dict with per-chunk records, the TTFA (cumulative latency when
+    the FIRST valid chunk was written), the total, and a concatenated `out_prefix_full.wav` of all
+    the ok chunks in order.
+
+    This lowers *perceived* latency (first audio sooner), not total generation time -- generation is
+    still autoregressive.
+    """
+    import numpy as np
+    import soundfile as sf
+    from hervoice.modular.chunk import split_sentences
+
+    out_prefix = os.path.abspath(out_prefix)
+    os.makedirs(os.path.dirname(out_prefix), exist_ok=True)
+    sentences = split_sentences(text)
+
+    t0 = time.time()
+    chunks = []
+    ttfa = None
+    concat = []
+    sr_ref = None
+
+    for idx, sent in enumerate(sentences):
+        wav_path = f"{out_prefix}_{idx:02d}.wav"
+        r = synth(sent, wav_path, ref_audio=ref_audio, ref_text=ref_text, language=language)
+        cum = round(time.time() - t0, 3)
+        entry = {"index": idx, "text": sent, "status": r.get("status"),
+                 "duration_s": r.get("duration_s", 0.0), "cumulative_latency_s": cum}
+        if r.get("status") == "ok":
+            entry["wav"] = r["out_path"]
+            if ttfa is None:
+                ttfa = cum  # first valid chunk -> time-to-first-audio
+            w, sr = sf.read(wav_path, dtype="float32")
+            if sr_ref is None:
+                sr_ref = sr
+            if sr == sr_ref:
+                concat.append(w)
+        else:
+            entry["wav"] = None
+            entry["reason"] = r.get("reason")
+        chunks.append(entry)
+
+    full_path, full_dur = None, None
+    if concat:
+        full = np.concatenate(concat)
+        full_path = f"{out_prefix}_full.wav"
+        sf.write(full_path, full, sr_ref)
+        full_dur = round(len(full) / sr_ref, 3) if sr_ref else 0.0
+
+    total = round(time.time() - t0, 3)
+    n_ok = sum(1 for c in chunks if c["status"] == "ok")
+    return {
+        "status": "ok" if n_ok > 0 else "tts_failed",
+        "n_sentences": len(sentences), "n_ok": n_ok,
+        "ttfa_s": ttfa, "total_s": total,
+        "full_wav": full_path, "full_duration_s": full_dur, "sr": sr_ref,
+        "chunks": chunks,
+    }
+
+
 if __name__ == "__main__":
     import sys
     txt = sys.argv[1] if len(sys.argv) > 1 else "Brazil has won the men's World Cup five times."

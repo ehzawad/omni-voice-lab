@@ -1,0 +1,222 @@
+{
+  "improvement": "sentence-chunked streaming TTS (lower time-to-first-audio)",
+  "mode": "warm-stream (persistent workers)",
+  "gpu_policy": "GPU0 only (CUDA_VISIBLE_DEVICES=0); GPU1 never touched",
+  "peak_vram_gpu0_mib": 10851,
+  "peak_vram_gpu0_gb": 10.6,
+  "peak_vram_gpu1_mib": 6,
+  "vram_budget_gb": 24,
+  "fifa_benchmark": {
+    "input_wav": "/mnt/sdb/arafat/hervoice/examples/in_fifa_question.wav",
+    "asr_model": "qwen3-asr-0.6b",
+    "turns_run": 5,
+    "turns_counted": 4,
+    "note": "turn 1 discarded (first-turn variance)",
+    "answer_is_single_sentence": true,
+    "honest_note": "The FIFA answer is a SINGLE sentence, so it splits into ONE chunk: TTFA == whole-answer total for THIS answer (no intra-answer split points). See multi_sentence_demo for the win when the answer has >1 sentence.",
+    "ttfa_s": {
+      "median": 22.296,
+      "p90": 22.585,
+      "min": 21.984,
+      "max": 22.596
+    },
+    "total_s": {
+      "median": 22.362000000000002,
+      "p90": 22.65,
+      "min": 22.055,
+      "max": 22.658
+    },
+    "tts_total_s": {
+      "median": 21.223,
+      "p90": 21.492
+    },
+    "round_trip_asr_full_wav": "Brazil has won the men's World Cup five times in the years 1958, 1962, 1970, 1994, and 2002.",
+    "round_trip_ok": true,
+    "representative_turn_chunks_valid": [
+      {
+        "index": 0,
+        "wav_exists": true,
+        "duration_s": 10.4,
+        "rms": 0.073,
+        "valid": true
+      }
+    ],
+    "per_turn": [
+      {
+        "turn": 1,
+        "status": "ok",
+        "transcript": "How many times has Brazil won the men's World Cup and which years?",
+        "answer": "Brazil has won the men's World Cup five times in 1958, 1962, 1970, 1994, and 2002.",
+        "n_sentences": 1,
+        "n_ok_chunks": 1,
+        "asr": 0.698,
+        "brain": 0.439,
+        "tts_total": 21.524,
+        "tts_ttfa": 21.453,
+        "ttfa": 22.59,
+        "total": 22.661,
+        "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn1_full.wav",
+        "output_audio_s": 10.4,
+        "chunks": [
+          {
+            "index": 0,
+            "text": "Brazil has won the men's World Cup five times in 1958, 1962, 1970, 1994, and 2002.",
+            "status": "ok",
+            "duration_s": 10.4,
+            "cumulative_latency_s": 21.453,
+            "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn1_00.wav"
+          }
+        ]
+      },
+      {
+        "turn": 2,
+        "status": "ok",
+        "transcript": "How many times has Brazil won the men's World Cup and which years?",
+        "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+        "n_sentences": 1,
+        "n_ok_chunks": 1,
+        "asr": 0.676,
+        "brain": 0.482,
+        "tts_total": 21.5,
+        "tts_ttfa": 21.438,
+        "ttfa": 22.596,
+        "total": 22.658,
+        "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn2_full.wav",
+        "output_audio_s": 10.4,
+        "chunks": [
+          {
+            "index": 0,
+            "text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+            "status": "ok",
+            "duration_s": 10.4,
+            "cumulative_latency_s": 21.438,
+            "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn2_00.wav"
+          }
+        ]
+      },
+      {
+        "turn": 3,
+        "status": "ok",
+        "transcript": "How many times has Brazil won the men's World Cup and which years?",
+        "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+        "n_sentences": 1,
+        "n_ok_chunks": 1,
+        "asr": 0.677,
+        "brain": 0.478,
+        "tts_total": 21.474,
+        "tts_ttfa": 21.404,
+        "ttfa": 22.559,
+        "total": 22.63,
+        "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn3_full.wav",
+        "output_audio_s": 10.72,
+        "chunks": [
+          {
+            "index": 0,
+            "text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+            "status": "ok",
+            "duration_s": 10.72,
+            "cumulative_latency_s": 21.404,
+            "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn3_00.wav"
+          }
+        ]
+      },
+      {
+        "turn": 4,
+        "status": "ok",
+        "transcript": "How many times has Brazil won the men's World Cup and which years?",
+        "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+        "n_sentences": 1,
+        "n_ok_chunks": 1,
+        "asr": 0.661,
+        "brain": 0.481,
+        "tts_total": 20.914,
+        "tts_ttfa": 20.843,
+        "ttfa": 21.984,
+        "total": 22.055,
+        "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn4_full.wav",
+        "output_audio_s": 10.4,
+        "chunks": [
+          {
+            "index": 0,
+            "text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+            "status": "ok",
+            "duration_s": 10.4,
+            "cumulative_latency_s": 20.843,
+            "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn4_00.wav"
+          }
+        ]
+      },
+      {
+        "turn": 5,
+        "status": "ok",
+        "transcript": "How many times has Brazil won the men's World Cup and which years?",
+        "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+        "n_sentences": 1,
+        "n_ok_chunks": 1,
+        "asr": 0.669,
+        "brain": 0.453,
+        "tts_total": 20.972,
+        "tts_ttfa": 20.911,
+        "ttfa": 22.033,
+        "total": 22.094,
+        "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn5_full.wav",
+        "output_audio_s": 10.4,
+        "chunks": [
+          {
+            "index": 0,
+            "text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+            "status": "ok",
+            "duration_s": 10.4,
+            "cumulative_latency_s": 20.911,
+            "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_turn5_00.wav"
+          }
+        ]
+      }
+    ]
+  },
+  "multi_sentence_demo": {
+    "purpose": "Isolate the TTS-level streaming win on a genuinely multi-sentence answer (same resident Qwen3-TTS model, same per-chunk guards). Shows TTFA = first short sentence's audio, a fraction of the whole-answer total.",
+    "text": "Brazil has won the men's World Cup five times. The years were 1958, 1962, 1970, 1994, and 2002. It is the most successful team in the tournament's history.",
+    "n_sentences": 3,
+    "n_ok": 3,
+    "ttfa_s": 7.216,
+    "total_s": 31.504,
+    "full_wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_multi_full.wav",
+    "full_duration_s": 15.2,
+    "chunks": [
+      {
+        "index": 0,
+        "text": "Brazil has won the men's World Cup five times.",
+        "status": "ok",
+        "duration_s": 3.44,
+        "cumulative_latency_s": 7.216,
+        "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_multi_00.wav"
+      },
+      {
+        "index": 1,
+        "text": "The years were 1958, 1962, 1970, 1994, and 2002.",
+        "status": "ok",
+        "duration_s": 7.68,
+        "cumulative_latency_s": 23.006,
+        "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_multi_01.wav"
+      },
+      {
+        "index": 2,
+        "text": "It is the most successful team in the tournament's history.",
+        "status": "ok",
+        "duration_s": 4.08,
+        "cumulative_latency_s": 31.454,
+        "wav": "/mnt/sdb/arafat/hervoice/runs/modular/stream_multi_02.wav"
+      }
+    ],
+    "round_trip_asr_full_wav": "Brazil has won the men's World Cup five times: the years were 1958, 1962, 1970, 1994, and 2002. It is the most successful team in the tournament's history."
+  },
+  "baseline_whole_answer_warm": {
+    "source": "results_modular_warm.json",
+    "tts_median_s": 22.053,
+    "tts_p90_s": 22.722,
+    "total_median_s": 23.358,
+    "total_p90_s": 24.038,
+    "note": "whole-answer warm TTS synthesizes the entire ~11 s answer before returning audio"
+  }
+}

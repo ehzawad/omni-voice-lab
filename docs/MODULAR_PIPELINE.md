@@ -168,6 +168,80 @@ workers: empty text → `tts_failed: empty input text` (no wav); missing/empty t
 `asr_failed`; empty answer → `brain_failed`; degenerate audio → `tts_failed`. Manifest schema is
 unchanged except for an added `"mode": "warm"` field (`runs/modular/manifest_warm.json`).
 
+## Streaming TTS (sentence-chunked, lower time-to-first-audio)
+
+Warm mode removed the model-*load* tax, but warm TTS still spends ~22 s because it synthesizes the
+**entire** answer autoregressively before returning any audio. The cheapest perceived-latency win is
+to synthesize the answer **sentence by sentence** and emit the first sentence's audio as soon as it
+is ready, while the rest keeps generating. This reuses the **existing** Qwen3-TTS model (no new
+dependency) and the exact same per-chunk failure guards.
+
+Code: `chunk.py` (`split_sentences`), `tts.py` (`synth_stream`), `tts_worker.py`
+(`POST /synth_stream`), `serve.py` (`--stream`).
+
+```bash
+# workers up (start_workers.sh); one streaming turn:
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
+  .venv-funasr/bin/python -m hervoice.modular.serve \
+    --wav examples/in_fifa_question.wav --out runs/modular/stream_demo.wav --ref-text "$REF" --stream
+```
+
+`/synth_stream` splits the text on `.?!`/newline boundaries (keeping list-y content like
+"1958, 1962, 1970, 1994, and 2002." in one chunk, and not splitting decimals/abbreviations/initials),
+writes each chunk `out_prefix_00.wav`, `_01.wav`, ... **as soon as it is ready**, plus a concatenated
+`out_prefix_full.wav`. It returns per-chunk `{index,text,wav,duration_s,status,cumulative_latency_s}`,
+the **TTFA** (cumulative latency when the first valid chunk was written) and the total. A chunk that
+fails the degenerate/empty guard is recorded `tts_failed` and skipped — no fabrication, no abort.
+
+### Measured — real numbers (warm workers, GPU0)
+
+**Required input `examples/in_fifa_question.wav`, `qwen3-asr-0.6b`, 5 turns, turn 1 discarded (4
+counted).** Full data in `results_modular_stream.json`.
+
+| Metric | Streaming (this change) | Whole-answer warm (baseline) |
+|---|---|---|
+| TTFA (turn start → first-sentence wav) | **22.30 s** median / 22.59 s p90 | — |
+| Full-answer total | 22.36 s median / 22.65 s p90 | 23.36 s median / 24.04 s p90 |
+| Whole-answer warm TTS | — | ~22.05 s median |
+
+**Honest result for the FIFA answer:** the brain's FIFA answer is a **single sentence**
+(*"Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002."*),
+so it splits into **exactly one chunk** — there are no intra-answer split points, and TTFA ≈ total
+(**22.30 s ≈ 22.36 s**). Streaming gives **no** win for a one-sentence answer, and we report that
+straight rather than dress it up. (The concise "one or two spoken sentences" system prompt often
+yields single sentences; "What is the capital of France?" is likewise one sentence.)
+
+**Where the win actually lands (multi-sentence answer).** Feeding a genuinely multi-sentence answer
+through the **same resident** Qwen3-TTS `/synth_stream` (isolating the TTS-level behavior):
+
+> "Brazil has won the men's World Cup five times. The years were 1958, 1962, 1970, 1994, and 2002.
+> It is the most successful team in the tournament's history."
+
+| Chunk | Text | Cumulative latency when its wav is ready |
+|---|---|---|
+| 0 | "Brazil has won the men's World Cup five times." | **7.22 s ← TTFA** |
+| 1 | "The years were 1958, 1962, 1970, 1994, and 2002." | 23.01 s |
+| 2 | "It is the most successful team in the tournament's history." | 31.45 s |
+
+First audio plays at **7.22 s** instead of **31.5 s** — the listener starts hearing the answer
+**~4.4× sooner**. Both the FIFA full wav and this multi-sentence full wav **round-trip** correctly
+(re-ASR recovers *"Brazil has won the men's World Cup five times ... 1958, 1962, 1970, 1994, and
+2002 ..."*), and every emitted chunk passed the duration/RMS guard.
+
+### Honest note: this cuts *perceived* latency, not total generation time
+
+Streaming does **not** make generation faster — it is still autoregressive. In the multi-sentence
+case the **total** is actually *higher* (31.5 s for ~15 s of audio, across three separate synth
+calls with per-call overhead) than a single whole-answer call would be; what drops dramatically is
+**time-to-first-audio**. The win is that the user hears the first sentence at ~7 s instead of
+waiting ~31 s for the whole thing. The **next** lever — a genuinely faster TTS *backend* (e.g.
+`faster-qwen3-tts`, reported ~6×) that lowers total generation time — is a **separate** change and is
+deliberately **not** done here.
+
+VRAM/GPU unchanged by this feature: co-resident peak GPU0 **10 851 MiB ≈ 10.6 GB** (vs 10 803 MiB
+baseline), well under the 24 GB card; **GPU1 stayed at 6 MiB — never touched**. The failure guards
+are preserved per chunk: empty/whitespace text → `tts_failed`, no wav, zero sentences (verified).
+
 ## VRAM
 
 Stages run sequentially, so peak GPU0 = brain (resident) + the single active model:

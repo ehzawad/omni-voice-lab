@@ -15,9 +15,18 @@ API (localhost only):
   GET  /health           -> {"status":"ok","loaded":true}
   POST /synth {"text": <str>, "out_path": <path>, "ref_text"?: <str>, "ref_audio"?: <path>}
         -> tts.synth(...) dict: {status,out_path,sr,duration_s,rms,latency_s,[reason]}
+  POST /synth_stream {"text": <str>, "out_prefix": <path>, "ref_text"?: <str>, "ref_audio"?: <path>}
+        -> tts.synth_stream(...) dict: sentence-chunked synth. Splits text into sentences, writes
+           each chunk wav (out_prefix_00.wav, _01.wav, ...) as soon as it is ready, plus a
+           concatenated out_prefix_full.wav. Returns {status,n_sentences,n_ok,ttfa_s,total_s,
+           full_wav,full_duration_s,sr,chunks:[{index,text,wav,duration_s,status,
+           cumulative_latency_s,[reason]}]}. TTFA = cumulative latency when the FIRST valid chunk
+           was written -> lowers *perceived* latency (first audio sooner), not total generation.
 
 The tts.synth() failure guards (empty text, degenerate/silent audio -> tts_failed, no wav) are
 preserved verbatim -- this worker only changes WHERE the model lives, not the honesty guards.
+synth_stream applies the SAME guards per chunk; a failing chunk is recorded tts_failed and skipped
+(no fabrication) without aborting the rest.
 """
 import argparse
 import json
@@ -53,21 +62,27 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/synth":
+        if self.path not in ("/synth", "/synth_stream"):
             self._send(404, {"error": "not found"})
             return
         try:
             n = int(self.headers.get("Content-Length", 0))
             req = json.loads(self.rfile.read(n) or b"{}")
             text = req.get("text", "")
-            out_path = req["out_path"]
             ref_text = req.get("ref_text")
             kwargs = {}
             if req.get("ref_audio"):
                 kwargs["ref_audio"] = req["ref_audio"]
-            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-            # tts.synth keeps its own failure guards (empty text, degenerate audio).
-            r = tts_mod.synth(text, out_path, ref_text=ref_text, **kwargs)
+            if self.path == "/synth_stream":
+                out_prefix = req["out_prefix"]
+                os.makedirs(os.path.dirname(os.path.abspath(out_prefix)), exist_ok=True)
+                # synth_stream applies tts.synth's guards per chunk (empty/degenerate -> skipped).
+                r = tts_mod.synth_stream(text, out_prefix, ref_text=ref_text, **kwargs)
+            else:
+                out_path = req["out_path"]
+                os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+                # tts.synth keeps its own failure guards (empty text, degenerate audio).
+                r = tts_mod.synth(text, out_path, ref_text=ref_text, **kwargs)
             self._send(200, r)
         except Exception as e:
             self._send(500, {"error": f"{type(e).__name__}: {e}"})

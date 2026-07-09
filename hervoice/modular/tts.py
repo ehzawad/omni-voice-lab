@@ -40,6 +40,11 @@ def synth(text, out_path, ref_audio: str = DEFAULT_REF, ref_text: str | None = N
           language: str = "English"):
     """Synthesize `text` in the reference voice, write a wav, return dict(out_path, sr, duration_s, latency_s)."""
     import soundfile as sf
+    # Reject empty/whitespace input up front (defense-in-depth): the model will vocalize
+    # something for "" that can pass the output-audio floor, so never synthesize on no text.
+    if not (text or "").strip():
+        return {"out_path": None, "status": "tts_failed", "reason": "empty input text",
+                "duration_s": 0.0, "rms": 0.0, "latency_s": 0.0}
     model = load()
     t0 = time.time()
     if ref_text:

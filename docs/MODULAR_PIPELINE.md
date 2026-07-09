@@ -143,6 +143,14 @@ A successful run records `status: ok`, `tts_status: ok`, and the output `output_
 The verification that "re-transcribing the output recovers the answer" is an **ASR-intelligibility
 proxy on one clip**, not human audio-quality proof.
 
+**Verified (2026-07):** these branches were exercised with degenerate inputs, not just coded.
+Full pipeline on 1.5 s of silence -> ASR returned `''` -> `status: asr_failed`, no brain call, no wav
+written. `tts.synth` on `"   "` -> `tts_failed` (degenerate audio, rms 0.0001); this test also caught
+that empty text `""` slipped through the output-audio floor (the model vocalizes noise), so an upfront
+empty-text guard was added -- `""`/`"   "`/`"\n\t "` now all return `tts_failed: empty input text`
+with no wav. `brain_failed` is coded (symmetric to `asr_failed`) but not independently triggered, since
+forcing an empty answer from the brain is impractical.
+
 ## Reproducibility and what is not built yet
 
 Honest scope so this is not mistaken for a finished product:

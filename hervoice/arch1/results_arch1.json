@@ -1,0 +1,200 @@
+{
+  "architecture": "ARCH 1 -- cascaded voice (STT -> LLM -> TTS), open local analog of GPT-Live Standard Voice Mode",
+  "git_commit": "b064a943589e87a7d4a247c7d7d7a106ca9751a8",
+  "gpu": "RTX A5000 (GPU0 only; CUDA_VISIBLE_DEVICES=0)",
+  "models": {
+    "asr": "Qwen/Qwen3-ASR-0.6B-hf",
+    "llm": "Qwen3.5-4B-Q4_K_M.gguf (llama-server, enable_thinking=False)",
+    "tts": "Qwen/Qwen3-TTS-12Hz-1.7B-Base (voice-clone, ref_female.wav)"
+  },
+  "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.",
+  "generated_at": "2026-07-09T12:33:20",
+  "summary": {
+    "n_turns": 3,
+    "n_ok": 3,
+    "failure_states": [],
+    "median_stream_ttfa_s_all_ok": 16.274,
+    "median_baseline_ttfa_s_all_ok": 26.187,
+    "median_speedup_s_all_ok": -1.456,
+    "multi_sentence_turns": {
+      "n": 1,
+      "median_stream_ttfa_s": 16.274,
+      "median_baseline_ttfa_s": 39.879,
+      "median_speedup_s": 23.605
+    },
+    "honest_caveats": [
+      "The qwen_tts package does NOT stream audio packets; generate_voice_clone returns a FULL waveform. The measured first-audio win is STAGE PIPELINING (synthesize sentence 0 while the LLM generates sentence 1), not sub-sentence packet streaming.",
+      "We do NOT claim the Qwen3-TTS paper's 97ms first-packet number; every latency here is measured in this repo on one RTX A5000.",
+      "The pipelining win only appears when the answer has >1 sentence (a single-sentence answer has no intra-answer split point, so streaming TTFA ~= baseline TTFA).",
+      "Total generation time is NOT reduced by pipelining (it can be marginally higher due to per-sentence overhead); only TIME-TO-FIRST-AUDIO drops.",
+      "Baseline synthesizes the SAME streaming answer whole, so the speedup is attributable to pipelining and not to LLM sampling variance.",
+      "Single-shot file input on a headless box: t0 is file-processing start, not a live mic voice-onset. English, single session."
+    ]
+  },
+  "turns": [
+    {
+      "input_wav": "/mnt/sdb/arafat/hervoice/examples/in_fifa_question.wav",
+      "asr_model": "qwen3-asr-0.6b",
+      "asr_hf_id": "Qwen/Qwen3-ASR-0.6B-hf",
+      "brain": "Qwen3.5-4B-Q4_K_M.gguf (llama-server, enable_thinking=False)",
+      "tts_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.",
+      "asr_s": 0.776,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "asr_features": "lang=English",
+      "llm_first_token_s": 1.339,
+      "llm_total_s": 0.906,
+      "answer_text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "n_sentences": 1,
+      "chunks": [
+        {
+          "index": 0,
+          "text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+          "status": "ok",
+          "duration_s": 11.6,
+          "cumulative_latency_s": 30.188,
+          "wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_fifa_00.wav"
+        }
+      ],
+      "tts_chunk_count": 1,
+      "tts_n_ok": 1,
+      "measured_first_audio_s": 30.188,
+      "tts_first_chunk_bytes": 556844,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_fifa_full.wav",
+      "full_duration_s": 11.6,
+      "full_sr": 24000,
+      "total_s": 30.237,
+      "status": "ok",
+      "baseline": {
+        "answer_text": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+        "llm_s": 0.906,
+        "tts_full_s": 24.505,
+        "baseline_first_audio_s": 26.187,
+        "baseline_total_s": 26.187,
+        "baseline_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_fifa_baseline_full.wav",
+        "baseline_tts_status": "ok",
+        "reference_nonstream_brain_ask_s": 0.483,
+        "reference_nonstream_answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002."
+      },
+      "improvement": {
+        "first_audio_speedup_s": -4.001,
+        "first_audio_speedup_ratio": 0.867,
+        "note": "For a single-sentence answer there is only one split point, so streaming TTFA ~= baseline TTFA (the win requires >1 sentence). See a multi-sentence turn for the real pipelining gain."
+      },
+      "turn_name": "fifa",
+      "input_note": "real repo wav; single-sentence answer"
+    },
+    {
+      "input_wav": "/mnt/sdb/arafat/hervoice/examples/in_en_question.wav",
+      "asr_model": "qwen3-asr-0.6b",
+      "asr_hf_id": "Qwen/Qwen3-ASR-0.6B-hf",
+      "brain": "Qwen3.5-4B-Q4_K_M.gguf (llama-server, enable_thinking=False)",
+      "tts_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.",
+      "asr_s": 0.401,
+      "transcript": "What is the capital of France?",
+      "asr_features": "lang=English",
+      "llm_first_token_s": 0.744,
+      "llm_total_s": 0.4,
+      "answer_text": "The capital of France is Paris.",
+      "n_sentences": 1,
+      "chunks": [
+        {
+          "index": 0,
+          "text": "The capital of France is Paris.",
+          "status": "ok",
+          "duration_s": 2.56,
+          "cumulative_latency_s": 7.949,
+          "wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_france_00.wav"
+        }
+      ],
+      "tts_chunk_count": 1,
+      "tts_n_ok": 1,
+      "measured_first_audio_s": 7.949,
+      "tts_first_chunk_bytes": 122924,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_france_full.wav",
+      "full_duration_s": 2.56,
+      "full_sr": 24000,
+      "total_s": 7.99,
+      "status": "ok",
+      "baseline": {
+        "answer_text": "The capital of France is Paris.",
+        "llm_s": 0.4,
+        "tts_full_s": 5.693,
+        "baseline_first_audio_s": 6.493,
+        "baseline_total_s": 6.493,
+        "baseline_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_france_baseline_full.wav",
+        "baseline_tts_status": "ok",
+        "reference_nonstream_brain_ask_s": 0.2,
+        "reference_nonstream_answer": "The capital of France is Paris."
+      },
+      "improvement": {
+        "first_audio_speedup_s": -1.456,
+        "first_audio_speedup_ratio": 0.817,
+        "note": "For a single-sentence answer there is only one split point, so streaming TTFA ~= baseline TTFA (the win requires >1 sentence). See a multi-sentence turn for the real pipelining gain."
+      },
+      "turn_name": "france",
+      "input_note": "real repo wav; single-sentence answer"
+    },
+    {
+      "input_wav": "/mnt/sdb/arafat/hervoice/examples/in_multi_question.wav",
+      "asr_model": "qwen3-asr-0.6b",
+      "asr_hf_id": "Qwen/Qwen3-ASR-0.6B-hf",
+      "brain": "Qwen3.5-4B-Q4_K_M.gguf (llama-server, enable_thinking=False)",
+      "tts_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.",
+      "asr_s": 0.555,
+      "transcript": "Who was Isaac Newton, and what is he famous for?",
+      "asr_features": "lang=English",
+      "llm_first_token_s": 0.686,
+      "llm_total_s": 0.585,
+      "answer_text": "Sir Isaac Newton was an English mathematician, physicist, and astronomer who lived during the seventeenth century. He is most famous for developing the laws of motion and universal gravitation, which explained how objects move and interact with each other in the universe.",
+      "n_sentences": 2,
+      "chunks": [
+        {
+          "index": 0,
+          "text": "Sir Isaac Newton was an English mathematician, physicist, and astronomer who lived during the seventeenth century.",
+          "status": "ok",
+          "duration_s": 7.44,
+          "cumulative_latency_s": 16.274,
+          "wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_multi_00.wav"
+        },
+        {
+          "index": 1,
+          "text": "He is most famous for developing the laws of motion and universal gravitation, which explained how objects move and interact with each other in the universe.",
+          "status": "ok",
+          "duration_s": 10.4,
+          "cumulative_latency_s": 37.802,
+          "wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_multi_01.wav"
+        }
+      ],
+      "tts_chunk_count": 2,
+      "tts_n_ok": 2,
+      "measured_first_audio_s": 16.274,
+      "tts_first_chunk_bytes": 357164,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_multi_full.wav",
+      "full_duration_s": 17.84,
+      "full_sr": 24000,
+      "total_s": 37.851,
+      "status": "ok",
+      "baseline": {
+        "answer_text": "Sir Isaac Newton was an English mathematician, physicist, and astronomer who lived during the seventeenth century. He is most famous for developing the laws of motion and universal gravitation, which explained how objects move and interact with each other in the universe.",
+        "llm_s": 0.585,
+        "tts_full_s": 38.739,
+        "baseline_first_audio_s": 39.879,
+        "baseline_total_s": 39.879,
+        "baseline_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_multi_baseline_full.wav",
+        "baseline_tts_status": "ok",
+        "reference_nonstream_brain_ask_s": 0.546,
+        "reference_nonstream_answer": "Isaac Newton was an English mathematician, physicist, and astronomer who lived during the 17th century. He is most famous for formulating the laws of motion and universal gravitation, which explained how objects move and interact with each other in the universe."
+      },
+      "improvement": {
+        "first_audio_speedup_s": 23.605,
+        "first_audio_speedup_ratio": 2.45,
+        "note": "Streaming emits the first sentence's audio while the LLM is still generating later sentences and before the whole answer is synthesized."
+      },
+      "turn_name": "multi",
+      "input_note": "TTS-generated question ('Who was Isaac Newton, and what is he famous for?') to exercise a genuine >1-sentence answer and show the pipelining win"
+    }
+  ]
+}

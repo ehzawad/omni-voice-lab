@@ -1,0 +1,101 @@
+{
+  "architecture": "ARCH 1 -- cascaded voice (STT -> LLM -> TTS), open local analog of GPT-Live Standard Voice Mode",
+  "git_commit": "b064a943589e87a7d4a247c7d7d7a106ca9751a8",
+  "gpu": "RTX A5000 (GPU0 only; CUDA_VISIBLE_DEVICES=0)",
+  "models": {
+    "asr": "Qwen/Qwen3-ASR-0.6B-hf",
+    "llm": "Qwen3.5-4B-Q4_K_M.gguf (llama-server, enable_thinking=False)",
+    "tts": "Qwen/Qwen3-TTS-12Hz-1.7B-Base (voice-clone, ref_female.wav)"
+  },
+  "ref_audio": "/mnt/sdb/arafat/hervoice/examples/ref_female.wav",
+  "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.",
+  "inputs": [
+    {
+      "turn": "fifa",
+      "wav": "/mnt/sdb/arafat/hervoice/examples/in_fifa_question.wav",
+      "note": "real repo wav; single-sentence answer"
+    },
+    {
+      "turn": "france",
+      "wav": "/mnt/sdb/arafat/hervoice/examples/in_en_question.wav",
+      "note": "real repo wav; single-sentence answer"
+    },
+    {
+      "turn": "multi",
+      "wav": "/mnt/sdb/arafat/hervoice/examples/in_multi_question.wav",
+      "note": "TTS-generated question ('Who was Isaac Newton, and what is he famous for?') to exercise a genuine >1-sentence answer and show the pipelining win"
+    }
+  ],
+  "workers": {
+    "asr": "127.0.0.1:8091",
+    "llama_server": "127.0.0.1:8090",
+    "tts": "127.0.0.1:8092"
+  },
+  "per_turn": [
+    {
+      "turn": "fifa",
+      "status": "ok",
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "n_sentences": 1,
+      "asr_s": 0.776,
+      "llm_first_token_s": 1.339,
+      "llm_total_s": 0.906,
+      "stream_first_audio_s": 30.188,
+      "baseline_first_audio_s": 26.187,
+      "first_audio_speedup_s": -4.001,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_fifa_full.wav"
+    },
+    {
+      "turn": "france",
+      "status": "ok",
+      "transcript": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "n_sentences": 1,
+      "asr_s": 0.401,
+      "llm_first_token_s": 0.744,
+      "llm_total_s": 0.4,
+      "stream_first_audio_s": 7.949,
+      "baseline_first_audio_s": 6.493,
+      "first_audio_speedup_s": -1.456,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_france_full.wav"
+    },
+    {
+      "turn": "multi",
+      "status": "ok",
+      "transcript": "Who was Isaac Newton, and what is he famous for?",
+      "answer": "Sir Isaac Newton was an English mathematician, physicist, and astronomer who lived during the seventeenth century. He is most famous for developing the laws of motion and universal gravitation, which explained how objects move and interact with each other in the universe.",
+      "n_sentences": 2,
+      "asr_s": 0.555,
+      "llm_first_token_s": 0.686,
+      "llm_total_s": 0.585,
+      "stream_first_audio_s": 16.274,
+      "baseline_first_audio_s": 39.879,
+      "first_audio_speedup_s": 23.605,
+      "full_wav": "/mnt/sdb/arafat/hervoice/runs/arch1/turn_multi_full.wav"
+    }
+  ],
+  "summary": {
+    "n_turns": 3,
+    "n_ok": 3,
+    "failure_states": [],
+    "median_stream_ttfa_s_all_ok": 16.274,
+    "median_baseline_ttfa_s_all_ok": 26.187,
+    "median_speedup_s_all_ok": -1.456,
+    "multi_sentence_turns": {
+      "n": 1,
+      "median_stream_ttfa_s": 16.274,
+      "median_baseline_ttfa_s": 39.879,
+      "median_speedup_s": 23.605
+    },
+    "honest_caveats": [
+      "The qwen_tts package does NOT stream audio packets; generate_voice_clone returns a FULL waveform. The measured first-audio win is STAGE PIPELINING (synthesize sentence 0 while the LLM generates sentence 1), not sub-sentence packet streaming.",
+      "We do NOT claim the Qwen3-TTS paper's 97ms first-packet number; every latency here is measured in this repo on one RTX A5000.",
+      "The pipelining win only appears when the answer has >1 sentence (a single-sentence answer has no intra-answer split point, so streaming TTFA ~= baseline TTFA).",
+      "Total generation time is NOT reduced by pipelining (it can be marginally higher due to per-sentence overhead); only TIME-TO-FIRST-AUDIO drops.",
+      "Baseline synthesizes the SAME streaming answer whole, so the speedup is attributable to pipelining and not to LLM sampling variance.",
+      "Single-shot file input on a headless box: t0 is file-processing start, not a live mic voice-onset. English, single session."
+    ]
+  },
+  "reproduce": "bash hervoice/modular/start_workers.sh; then CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 .venv-funasr/bin/python -m hervoice.arch1.run_arch1"
+}

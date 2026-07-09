@@ -1,0 +1,124 @@
+{
+  "mode": "warm (persistent workers)",
+  "input_wav": "/mnt/sdb/arafat/hervoice/examples/in_fifa_question.wav",
+  "asr_model": "qwen3-asr-0.6b",
+  "turns_run": 5,
+  "turns_counted": 4,
+  "note": "turn 1 discarded (first-turn variance)",
+  "coresident_peak_vram_gpu0_mib": 10803,
+  "coresident_peak_vram_gpu0_gb": 10.55,
+  "vram_budget_gb": 24,
+  "vram_ok": true,
+  "warm_latency_s": {
+    "asr": {
+      "median": 0.738,
+      "p90": 0.835,
+      "min": 0.631,
+      "max": 0.836
+    },
+    "brain": {
+      "median": 0.476,
+      "p90": 0.477,
+      "min": 0.459,
+      "max": 0.481
+    },
+    "tts": {
+      "median": 22.053,
+      "p90": 22.722,
+      "min": 20.986,
+      "max": 26.271
+    },
+    "total": {
+      "median": 23.358,
+      "p90": 24.038,
+      "min": 22.104,
+      "max": 27.378
+    }
+  },
+  "cold_baseline_s": {
+    "asr": 15.15,
+    "brain": 0.49,
+    "tts": 42.79,
+    "total": 58.42,
+    "source": "docs/MODULAR_PIPELINE.md pipeline.py one-shot subprocess run"
+  },
+  "answer_correct": true,
+  "all_wav_valid": true,
+  "per_turn": [
+    {
+      "turn": 1,
+      "status": "ok",
+      "asr": 0.702,
+      "brain": 0.54,
+      "tts": 25.843,
+      "total": 27.085,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "tts_status": "ok",
+      "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/warm_turn1.wav",
+      "output_audio_s": 10.4,
+      "output_rms": 0.0746,
+      "vram_gpu0_mib": 10423
+    },
+    {
+      "turn": 2,
+      "status": "ok",
+      "asr": 0.835,
+      "brain": 0.481,
+      "tts": 22.722,
+      "total": 24.038,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "tts_status": "ok",
+      "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/warm_turn2.wav",
+      "output_audio_s": 11.28,
+      "output_rms": 0.0767,
+      "vram_gpu0_mib": 10613
+    },
+    {
+      "turn": 3,
+      "status": "ok",
+      "asr": 0.631,
+      "brain": 0.476,
+      "tts": 26.271,
+      "total": 27.378,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "tts_status": "ok",
+      "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/warm_turn3.wav",
+      "output_audio_s": 11.76,
+      "output_rms": 0.0721,
+      "vram_gpu0_mib": 10803
+    },
+    {
+      "turn": 4,
+      "status": "ok",
+      "asr": 0.836,
+      "brain": 0.459,
+      "tts": 21.383,
+      "total": 22.678,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in 1958, 1962, 1970, 1994, and 2002.",
+      "tts_status": "ok",
+      "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/warm_turn4.wav",
+      "output_audio_s": 10.4,
+      "output_rms": 0.0634,
+      "vram_gpu0_mib": 10803
+    },
+    {
+      "turn": 5,
+      "status": "ok",
+      "asr": 0.641,
+      "brain": 0.477,
+      "tts": 20.986,
+      "total": 22.104,
+      "transcript": "How many times has Brazil won the men's World Cup and which years?",
+      "answer": "Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002.",
+      "tts_status": "ok",
+      "output_wav": "/mnt/sdb/arafat/hervoice/runs/modular/warm_turn5.wav",
+      "output_audio_s": 10.4,
+      "output_rms": 0.0784,
+      "vram_gpu0_mib": 10803
+    }
+  ]
+}

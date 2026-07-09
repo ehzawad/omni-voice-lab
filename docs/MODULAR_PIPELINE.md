@@ -97,9 +97,76 @@ warmup**, not steady-state:
 - TTS 42.79 s includes loading the 4.3 GB model from disk + generating 11 s of audio.
 - Brain 0.49 s is already warm (server stays resident).
 
-A persistent-worker deployment (keep each model loaded) should remove much of the model-load /
-warmup overhead, but this run did **not** measure interactive persistent-worker latency. This build
-optimizes for **VRAM safety and venv isolation**, not latency.
+A persistent-worker deployment (keep each model loaded) removes the model-load / warmup overhead.
+This is now **built and measured** — see [Persistent-worker mode (warm)](#persistent-worker-mode-warm)
+below. The one-shot subprocess path (`pipeline.py`) remains available and optimizes for **VRAM
+safety and venv isolation**; the warm path (`serve.py`) optimizes for **latency**.
+
+## Persistent-worker mode (warm)
+
+Instead of reloading each model per turn, keep ASR and TTS **resident** in long-lived worker
+processes that expose a tiny localhost HTTP API (Python stdlib `http.server`, no web framework).
+The brain (llama-server) was already persistent. All three models co-reside on GPU0.
+
+```
+  wav ─▶ ASR worker :8091 ─▶ brain llama-server :8090 ─▶ TTS worker :8092 ─▶ wav
+        (.venv-qwen-asr,      (Qwen3.5-4B, resident)     (.venv-qwen-audio,
+         model resident)                                  model resident)
+```
+
+Code: `asr_worker.py`, `tts_worker.py`, `serve.py` (warm turn), `start_workers.sh` (launch + health).
+
+### Start all three workers (GPU0 only)
+
+```bash
+bash hervoice/modular/start_workers.sh      # loads brain + ASR + TTS, waits for /health, prints PIDs
+# stop: kill $(cat runs/modular/worker_pids.txt)
+```
+
+Model load + one warmup pass happens once at startup (measured: ASR load 12.6 s + warmup 14.1 s;
+TTS load 30.8 s + warmup 6.2 s; brain server ~seconds). After that every turn is warm inference.
+
+### Run one warm turn
+
+```bash
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
+  .venv-funasr/bin/python -m hervoice.modular.serve \
+    --wav examples/in_fifa_question.wav --out runs/modular/warm_demo.wav --ref-text "$REF"
+```
+
+### Warm vs cold — real measured numbers
+
+Input `examples/in_fifa_question.wav`, `qwen3-asr-0.6b`, 5 turns, **turn 1 discarded** (4 counted).
+Full data in `results_modular_warm.json`. Every turn produced the correct answer
+(*"Brazil has won the men's World Cup five times, in the years 1958, 1962, 1970, 1994, and 2002."*)
+and a valid ~11.3 s wav (`tts_status: ok`, rms ≈ 0.077).
+
+| Stage | Cold (one-shot subprocess) | Warm median | Warm p90 | What warm removes |
+|---|---|---|---|---|
+| ASR (qwen3-asr-0.6b) | 15.15 s | **0.74 s** | 0.84 s | ~14 s CUDA-graph warmup + model load |
+| Brain (Qwen3.5-4B) | 0.49 s | **0.48 s** | 0.48 s | already resident both ways |
+| TTS (Qwen3-TTS-1.7B) | 42.79 s | **22.05 s** | 22.72 s | ~20 s model load (see honest note) |
+| **Total** | **58.42 s** | **23.36 s** | 24.04 s | **~2.5× faster per turn** |
+
+### Co-resident VRAM (all three models loaded, GPU0)
+
+Measured peak GPU0 with brain + ASR + TTS all resident and serving: **10 803 MiB ≈ 10.55 GB**,
+well under the 24 GB card. Per-process at load: brain ~3.23 GB, ASR-0.6B ~1.83 GB, TTS ~4.49 GB.
+GPU1 (the other user's A6000) stayed at 6 MiB idle throughout — never touched.
+
+### Honest note: this removes the LOAD tax, not the generation time
+
+Warm TTS is still **22 s for a ~11 s answer** because Qwen3-TTS generation is autoregressive — that
+is generation, not model load. Warm mode kills the per-turn *model-reload* tax (the ~14 s ASR warmup
+and ~20 s TTS load), which is why ASR drops 20× and total drops ~2.5×. The **next** lever is TTS
+*generation* time — sentence-chunked streaming (start speaking sentence 1 while sentence 2
+synthesizes) and/or a faster backend (e.g. faster-qwen3-tts, reported ~6×). That is a separate
+improvement and is **not** what this change does.
+
+The warm path keeps the exact same honest failure states as `pipeline.py`, verified through the
+workers: empty text → `tts_failed: empty input text` (no wav); missing/empty transcript →
+`asr_failed`; empty answer → `brain_failed`; degenerate audio → `tts_failed`. Manifest schema is
+unchanged except for an added `"mode": "warm"` field (`runs/modular/manifest_warm.json`).
 
 ## VRAM
 
@@ -159,10 +226,14 @@ Honest scope so this is not mistaken for a finished product:
   paths under `/mnt/sdb/arafat/llm-stuff/qwen35-gguf-bench/` (see `brain.py`). On another machine
   those paths, the port (8090), and the three venv locations must be adjusted; there is no config
   file yet. Treat the paths as this-host defaults.
-- **Per-turn model reload.** ASR and TTS run as one-shot subprocesses that load their model every
-  call (the 15 s / 41 s costs above). This is VRAM-safe but not interactive. A persistent
-  worker/service per venv (localhost HTTP or JSON-RPC) is the real-latency path and is **not built**.
-- **Not built:** streaming (partial ASR/LLM/TTS), a single entrypoint that starts/health-checks all
-  services, config-driven model/path selection, and RAG grounding. `fifa_rag.py` already exists and
-  the clean slot is between ASR and brain (an optional `--rag-kb` + `brain.ask_grounded`); not wired
-  in here. These are the smallest high-value next steps.
+- **Per-turn model reload — FIXED (warm path).** `pipeline.py` still runs ASR/TTS as one-shot
+  subprocesses (VRAM-safe, cold-start), but the **persistent-worker path is now built and measured**:
+  `asr_worker.py` + `tts_worker.py` (stdlib `http.server`, localhost) keep each model resident, and
+  `serve.py` runs a warm inference-only turn. See
+  [Persistent-worker mode (warm)](#persistent-worker-mode-warm) — warm total 23.4 s vs 58.4 s cold,
+  ASR 0.74 s vs 15.15 s. `start_workers.sh` is the single entrypoint that starts + health-checks all
+  three services.
+- **Not built:** streaming (partial ASR/LLM/TTS — the next lever, since warm TTS is still
+  autoregressive), config-driven model/path selection, and RAG grounding. `fifa_rag.py` already
+  exists and the clean slot is between ASR and brain (an optional `--rag-kb` + `brain.ask_grounded`);
+  not wired in here. These are the smallest high-value next steps.

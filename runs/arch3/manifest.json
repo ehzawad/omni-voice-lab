@@ -1,0 +1,42 @@
+{
+  "arch": "ARCH 3 -- continuous full-duplex + delegated reasoning",
+  "inputs": {
+    "scenarioA_question": "What is the capital of France?",
+    "scenarioA_question_wav": "/mnt/sdb/arafat/hervoice/examples/in_en_question.wav",
+    "bargein_question": "What is the capital of France?",
+    "interrupt_wav": "/mnt/sdb/arafat/hervoice/examples/in_fifa_question.wav",
+    "gap_default": 2
+  },
+  "outputs": {
+    "demo": "runs/arch3/demo_arch3.wav",
+    "scenarioA_session": "runs/arch3/scenarioA_session.wav",
+    "scenarioA_frames": "runs/arch3/scenarioA_frames.json",
+    "scenarioB_bargein": "runs/arch3/scenarioB_bargein.wav",
+    "scenarioB_frames": "runs/arch3/scenarioB_frames.json",
+    "bargein_log": "runs/arch3/bargein.log",
+    "gap_sweep_wavs": [
+      "runs/arch3/sweep_gap1.wav",
+      "runs/arch3/sweep_gap2.wav",
+      "runs/arch3/sweep_gap3.wav",
+      "runs/arch3/sweep_gap4.wav"
+    ],
+    "oss_server_log": "runs/arch3/oss_server.log",
+    "run_log": "runs/arch3/run.log",
+    "results": "hervoice/gptlive/results_arch3.json"
+  },
+  "vram_mb": {
+    "brain_only_mb": 11239.0,
+    "both_resident_mb": 26828.0,
+    "peak_after_A_mb": 28548.0,
+    "peak_all_mb": 28903.0,
+    "torch_peak_alloc_mb": 17430.0
+  },
+  "vram_peak_gb": 28.23,
+  "behaviours_shown": {
+    "1_overlap": true,
+    "2_async_delegation": true,
+    "3_barge_in": true,
+    "4_gap_sweep": true
+  },
+  "recommended_gap": 2
+}

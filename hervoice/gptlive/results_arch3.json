@@ -1,0 +1,366 @@
+{
+  "arch": "ARCH 3 -- continuous full-duplex + delegated reasoning",
+  "front": "Moshi (kyutai/moshiko-pytorch-bf16)",
+  "delegate_brain": "gpt-oss-20B Q4_K_M (llama-server :8093)",
+  "gpu": "RTX A6000 48GB (physical GPU1) only",
+  "note": "open local analog of GPT-Live; delegate is gpt-oss-20B, NOT GPT-5.5",
+  "behaviour_1_full_duplex_overlap": {
+    "shown": true,
+    "evidence": {
+      "u_thr": 0.02,
+      "a_thr": 0.01,
+      "n_overlap_frames": 19,
+      "overlap_frames_by_phase": {
+        "LISTEN": 6,
+        "WAIT": 4,
+        "SPEAK": 9
+      },
+      "sample_overlap_frames": [
+        {
+          "in_frame": 7,
+          "out_frame": 7,
+          "phase": "LISTEN",
+          "user_rms_in": 0.12225,
+          "assistant_rms_out": 0.06963,
+          "piece": ""
+        },
+        {
+          "in_frame": 8,
+          "out_frame": 8,
+          "phase": "LISTEN",
+          "user_rms_in": 0.17807,
+          "assistant_rms_out": 0.14025,
+          "piece": ""
+        },
+        {
+          "in_frame": 9,
+          "out_frame": 9,
+          "phase": "LISTEN",
+          "user_rms_in": 0.06423,
+          "assistant_rms_out": 0.07452,
+          "piece": ""
+        },
+        {
+          "in_frame": 10,
+          "out_frame": 10,
+          "phase": "LISTEN",
+          "user_rms_in": 0.07728,
+          "assistant_rms_out": 0.06392,
+          "piece": ""
+        },
+        {
+          "in_frame": 11,
+          "out_frame": 11,
+          "phase": "LISTEN",
+          "user_rms_in": 0.0845,
+          "assistant_rms_out": 0.02918,
+          "piece": ""
+        },
+        {
+          "in_frame": 12,
+          "out_frame": 12,
+          "phase": "LISTEN",
+          "user_rms_in": 0.02567,
+          "assistant_rms_out": 0.01041,
+          "piece": ""
+        },
+        {
+          "in_frame": 62,
+          "out_frame": 62,
+          "phase": "WAIT",
+          "user_rms_in": 0.05114,
+          "assistant_rms_out": 0.0119,
+          "piece": "<unk>"
+        },
+        {
+          "in_frame": 63,
+          "out_frame": 63,
+          "phase": "WAIT",
+          "user_rms_in": 0.12251,
+          "assistant_rms_out": 0.16588,
+          "piece": "<unk>"
+        },
+        {
+          "in_frame": 64,
+          "out_frame": 64,
+          "phase": "WAIT",
+          "user_rms_in": 0.07335,
+          "assistant_rms_out": 0.07187,
+          "piece": "<unk>"
+        },
+        {
+          "in_frame": 65,
+          "out_frame": 65,
+          "phase": "WAIT",
+          "user_rms_in": 0.10684,
+          "assistant_rms_out": 0.01524,
+          "piece": "<unk>"
+        },
+        {
+          "in_frame": 67,
+          "out_frame": 67,
+          "phase": "SPEAK",
+          "user_rms_in": 0.04637,
+          "assistant_rms_out": 0.06434,
+          "piece": " The"
+        },
+        {
+          "in_frame": 70,
+          "out_frame": 70,
+          "phase": "SPEAK",
+          "user_rms_in": 0.05526,
+          "assistant_rms_out": 0.047,
+          "piece": " capital"
+        }
+      ]
+    },
+    "explanation": "frames where the input stream carries speech energy AND Moshi simultaneously emits audio; native 12.5 Hz duplex, no VAD gate."
+  },
+  "behaviour_2_async_streaming_delegation": {
+    "shown": true,
+    "timeline_output_frames": {
+      "delegation_start_frame": 35,
+      "first_brain_token_frame": 67,
+      "answer_complete_frame": 88,
+      "frames_spoken_while_waiting": 32,
+      "audio_ms_kept_alive_while_brain_reasoned": 2560.0,
+      "brain_reasoning_deltas_before_answer": 52,
+      "brain_first_content_latency_s": 1.59
+    },
+    "brain_answer": "The capital of France is Paris.",
+    "moshi_forced_vocalised": "The capital of France is Paris.",
+    "reasr_full_session": "Hi... The capital of France the main thing, capital, is kicked to the capital of France. Paris. I am fuhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+    "explanation": "gpt-oss ran on a background thread; Moshi backchanneled for the frames_spoken_while_waiting frames while the brain reasoned, then teacher-forced the streamed answer tokens and vocalised them incrementally."
+  },
+  "behaviour_3_barge_in": {
+    "shown": true,
+    "scripted_interrupt_input_frame": 73,
+    "markers": {
+      "delegation_start_frame": 35,
+      "first_brain_token_frame": 70,
+      "answer_complete_frame": null,
+      "interrupt_frame": 79,
+      "interrupt_detect_frame": 81,
+      "cutoff_frame": 81
+    },
+    "rms_thresh": 0.02,
+    "sustain_frames": 3,
+    "moshi_vocalised_before_cutoff": "Paris is the capital",
+    "brain_answer_full": "Paris is the capital of France.",
+    "explanation": "energy-threshold detector armed during assistant speech; on sustained user energy the forced answer is aborted (force -> None) and Moshi yields. Heuristic, not a trained interruption model."
+  },
+  "behaviour_4_gap_sweep": {
+    "shown": true,
+    "fixed_answer_text": "The capital of France is Paris.",
+    "table": [
+      {
+        "gap": 1,
+        "mean_duration_s": 2.24,
+        "mean_word_recall_vs_answer": 0.367,
+        "mean_cer_vs_answer": 0.704,
+        "intelligibility_score": -0.337,
+        "trials": [
+          {
+            "trial": 0,
+            "duration_s": 2.24,
+            "reasr_text": "Good day as your day. You okay?",
+            "word_recall": 0.0,
+            "cer": 0.88
+          },
+          {
+            "trial": 1,
+            "duration_s": 2.24,
+            "reasr_text": "The capital of Alice is the Paris.",
+            "word_recall": 0.833,
+            "cer": 0.28
+          },
+          {
+            "trial": 2,
+            "duration_s": 2.24,
+            "reasr_text": "Other Capital Fonts as Paris, Sumena. // // // // // // // // // // // // // // // // // // // // // // // // // // //",
+            "word_recall": 0.333,
+            "cer": 0.6
+          },
+          {
+            "trial": 3,
+            "duration_s": 2.24,
+            "reasr_text": "Hi, Capitalist friend.",
+            "word_recall": 0.0,
+            "cer": 0.6
+          },
+          {
+            "trial": 4,
+            "duration_s": 2.24,
+            "reasr_text": "The capital of Kras, what is the- The capital of Kras, what is the-",
+            "word_recall": 0.667,
+            "cer": 1.16
+          }
+        ],
+        "best_trial_reasr": "The capital of Alice is the Paris."
+      },
+      {
+        "gap": 2,
+        "mean_duration_s": 2.8,
+        "mean_word_recall_vs_answer": 0.666,
+        "mean_cer_vs_answer": 0.528,
+        "intelligibility_score": 0.138,
+        "trials": [
+          {
+            "trial": 0,
+            "duration_s": 2.8,
+            "reasr_text": "How about the public Francis Paris? Who was...",
+            "word_recall": 0.333,
+            "cer": 0.84
+          },
+          {
+            "trial": 1,
+            "duration_s": 2.8,
+            "reasr_text": "Today is Perry's age of...",
+            "word_recall": 0.333,
+            "cer": 0.8
+          },
+          {
+            "trial": 2,
+            "duration_s": 2.8,
+            "reasr_text": "The capital of France is parrot. There is a...",
+            "word_recall": 0.833,
+            "cer": 0.36
+          },
+          {
+            "trial": 3,
+            "duration_s": 2.8,
+            "reasr_text": "I the capital of France is Paris, 2 in 4-",
+            "word_recall": 1.0,
+            "cer": 0.2
+          },
+          {
+            "trial": 4,
+            "duration_s": 2.8,
+            "reasr_text": "That capital of France is Paris. What is not?",
+            "word_recall": 0.833,
+            "cer": 0.44
+          }
+        ],
+        "best_trial_reasr": "I the capital of France is Paris, 2 in 4-"
+      },
+      {
+        "gap": 3,
+        "mean_duration_s": 3.36,
+        "mean_word_recall_vs_answer": 0.6,
+        "mean_cer_vs_answer": 0.672,
+        "intelligibility_score": -0.072,
+        "trials": [
+          {
+            "trial": 0,
+            "duration_s": 3.36,
+            "reasr_text": "Ah, the capital of France is per period.",
+            "word_recall": 0.833,
+            "cer": 0.32
+          },
+          {
+            "trial": 1,
+            "duration_s": 3.36,
+            "reasr_text": "other the only country in the world.",
+            "word_recall": 0.167,
+            "cer": 0.88
+          },
+          {
+            "trial": 2,
+            "duration_s": 3.36,
+            "reasr_text": "Hey, how's your day? How's your day is a well",
+            "word_recall": 0.167,
+            "cer": 1.04
+          },
+          {
+            "trial": 3,
+            "duration_s": 3.36,
+            "reasr_text": "The capital of France is Paris, which oceans...",
+            "word_recall": 1.0,
+            "cer": 0.44
+          },
+          {
+            "trial": 4,
+            "duration_s": 3.36,
+            "reasr_text": "The future of France is Paris, Camden Hoos.",
+            "word_recall": 0.833,
+            "cer": 0.68
+          }
+        ],
+        "best_trial_reasr": "The capital of France is Paris, which oceans..."
+      },
+      {
+        "gap": 4,
+        "mean_duration_s": 3.92,
+        "mean_word_recall_vs_answer": 0.733,
+        "mean_cer_vs_answer": 1.112,
+        "intelligibility_score": -0.379,
+        "trials": [
+          {
+            "trial": 0,
+            "duration_s": 3.92,
+            "reasr_text": "Hello, the capital of France is Paris, Victory's US.",
+            "word_recall": 1.0,
+            "cer": 0.6
+          },
+          {
+            "trial": 1,
+            "duration_s": 3.92,
+            "reasr_text": "The fabulous city of Middlemen and his million Paris, the half of the city, the half of the",
+            "word_recall": 0.5,
+            "cer": 2.24
+          },
+          {
+            "trial": 2,
+            "duration_s": 3.92,
+            "reasr_text": "Other capital of Casa Francis Paris. What is 17 minus?",
+            "word_recall": 0.667,
+            "cer": 0.8
+          },
+          {
+            "trial": 3,
+            "duration_s": 3.92,
+            "reasr_text": "Hello, the capital of France is Paris. How are you doing?",
+            "word_recall": 1.0,
+            "cer": 0.76
+          },
+          {
+            "trial": 4,
+            "duration_s": 3.92,
+            "reasr_text": "The fifth instance of all those twos is first. Okay.",
+            "word_recall": 0.5,
+            "cer": 1.16
+          }
+        ],
+        "best_trial_reasr": "Hello, the capital of France is Paris, Victory's US."
+      }
+    ],
+    "recommended_gap": 2,
+    "n_trials_per_gap": 5,
+    "metric": "intelligibility_score = mean word_recall - mean CER over trials (recall: answer words present, higher better; CER proxy penalises Moshi's spurious/echo chars, lower better)"
+  },
+  "vram_mb": {
+    "brain_only_mb": 11239.0,
+    "both_resident_mb": 26828.0,
+    "peak_after_A_mb": 28548.0,
+    "peak_all_mb": 28903.0,
+    "torch_peak_alloc_mb": 17430.0
+  },
+  "vram_peak_gb": 28.23,
+  "reasr_verifications": {
+    "scenarioA_session": "Hi... The capital of France the main thing, capital, is kicked to the capital of France. Paris. I am fuhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+    "gap_sweep": {
+      "1": "The capital of Alice is the Paris.",
+      "2": "I the capital of France is Paris, 2 in 4-",
+      "3": "The capital of France is Paris, which oceans...",
+      "4": "Hello, the capital of France is Paris, Victory's US."
+    }
+  },
+  "teacher_forcing_mechanism": "Moshi is a full-duplex front; the delegated answer text is rendered back through Moshi by teacher-forcing its inner-monologue text stream (on_text_hook overwrites the sampled text token in place before the depformer vocalises it), so the acoustics are Moshi's but the WORDS are gpt-oss's. This is NOT Moshi autonomously deciding to say the answer.",
+  "honesty_caveats": [
+    "Pacing is heuristic (gap PAD frames per word-piece); no learned alignment. Moshi's audio depformer samples at temp>0 so run-to-run variance / occasional echo is possible.",
+    "moshiko's own inner monologue is its OWN unreliable reply, so the user turn is not read from it; behaviours use scripted input wavs.",
+    "barge-in is an energy-threshold heuristic on the scripted input stream, not a trained interruption model.",
+    "Naturalness needs human MOS; not claimed here.",
+    "Open local analog of GPT-Live continuous mode; delegate is gpt-oss-20B (open weights), single A6000, English, file-driven (no live mic)."
+  ]
+}

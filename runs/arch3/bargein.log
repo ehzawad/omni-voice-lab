@@ -1,0 +1,8 @@
+{
+  "delegation_start_frame": 35,
+  "first_brain_token_frame": 70,
+  "answer_complete_frame": null,
+  "interrupt_frame": 79,
+  "interrupt_detect_frame": 81,
+  "cutoff_frame": 81
+}

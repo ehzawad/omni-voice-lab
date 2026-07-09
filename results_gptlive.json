@@ -1,0 +1,62 @@
+{
+  "design": "Local open-weight mirror of OpenAI GPT-Live: Moshi full-duplex FRONT delegates to a local Qwen3.5-4B GGUF reasoning brain, one RTX A5000 (GPU0).",
+  "teacher_forcing_achieved": true,
+  "teacher_forcing_mechanism": "LMGen(on_text_hook=...) overwrites the sampled text token in place before the depformer vocalises it",
+  "pacing_note": "1 word-piece + 2 pad frames per frame (gap=2); no learned alignment model, so pacing is heuristic and audio sampling adds run-to-run variance.",
+  "co_resident_peak_vram_gb": 20.02,
+  "vram_breakdown_mb": {
+    "brain_only": 3260.0,
+    "moshi_plus_brain": 18782.0,
+    "peak": 20504.0
+  },
+  "gpu": "GPU0 (RTX A5000) only; GPU1 (A6000) untouched.",
+  "examples": [
+    {
+      "name": "france",
+      "user_transcript_asr": "What is the capital of France?",
+      "moshi_own_inner_monologue": "Hello, how was your day? The capital of France is Paris.",
+      "delegate": {
+        "delegate": true,
+        "reason": "contains a question mark"
+      },
+      "brain_answer": "The capital of France is Paris.",
+      "spoken_output_asr_verification": "Paris, the capital of France is Paris. It is no",
+      "spoken_wav": "runs/gptlive/gptlive_spoken_answer_france.wav",
+      "timings_s": {
+        "asr_user_s": 3.99,
+        "load_moshi_s": 7.49,
+        "moshi_listen_s": 8.17,
+        "brain_answer_s": 0.2,
+        "moshi_speak_s": 3.58,
+        "asr_forced_out_s": 4.32
+      }
+    },
+    {
+      "name": "fifa",
+      "user_transcript_asr": "How many times has brazen one the men's world cup and rich ears?",
+      "moshi_own_inner_monologue": "Hi, how is it going? She won it twice in 1980",
+      "delegate": {
+        "delegate": true,
+        "reason": "contains a question mark"
+      },
+      "brain_answer": "I don't know what you are asking because those words do not make sense.",
+      "spoken_output_asr_verification": "cup. I don't know what you are asking because those words do not make sense.",
+      "spoken_wav": "runs/gptlive/gptlive_spoken_answer_fifa.wav",
+      "timings_s": {
+        "asr_user_s": 4.17,
+        "load_moshi_s": 7.21,
+        "moshi_listen_s": 8.6,
+        "brain_answer_s": 0.3,
+        "moshi_speak_s": 5.82,
+        "asr_forced_out_s": 4.21
+      }
+    }
+  ],
+  "honest_findings": [
+    "Moshi + brain load CO-RESIDENT: peak ~20.5 GB of 24 GB. Fits.",
+    "Teacher-forcing Moshi's inner monologue via LMGen(on_text_hook=...) WORKS: forced answer tokens drive the depformer, the output wav re-transcribes to the answer (France: 'the capital of France is Paris'; FIFA 15-word answer near-verbatim).",
+    "moshiko's inner monologue is Moshi's OWN reply, NOT a verbatim user ASR, and it is factually unreliable (FIFA: 'She won it twice in 1980'). Hence the delegation controller uses a separate faster-whisper ASR of the user turn, and delegates facts/reasoning to the brain -- the whole point of the architecture.",
+    "Pacing has no learned alignment model; gap=2 is the intelligibility sweet spot but audio-token sampling (temp 0.8) gives run-to-run variance and occasional word echoes/artifacts.",
+    "base.en ASR garbled the noisier FIFA input, which cascaded into the brain -- front-end ASR quality matters."
+  ]
+}

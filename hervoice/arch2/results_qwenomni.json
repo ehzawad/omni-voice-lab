@@ -1,0 +1,15 @@
+{
+  "candidate": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+  "architecture": "arch2 turn-based single speech-to-speech",
+  "status": "smoke_failed_does_not_fit_single_a6000",
+  "smoke_verdict": {
+    "gate1_loads_within_48gb": false,
+    "gate2_native_audio_out_capability": true,
+    "gate3_valid_speech_on_a6000": false
+  },
+  "turn_metrics": null,
+  "reason": "35.26B MoE (thinker 31.72B + talker 3.32B + code2wav 0.22B). bf16 ~70-80GB (multi-GPU). bitsandbytes cannot quantize the fused MoE experts (not nn.Linear). Community int4 (compressed-tensors) is decompressed back to bf16 at load -> ~64GB -> OOM. CPU-offload load succeeds but inference crashes on an accelerate-offload vs compressed_tensors quantized_forward incompatibility. VRAM peak 47.4 GiB (card saturated).",
+  "recommendation": "MiniCPM-o remains the arch2 primary.",
+  "evidence": "runs/arch2/qwenomni/smoke_result.json, runs/arch2/qwenomni/smoke_run.log, runs/arch2/qwenomni/smoke_offload.log, docs/ARCH2_QWENOMNI.md",
+  "git_commit": "e5fb7e26a85114750d0e0540c88a8db83e4bb77b"
+}

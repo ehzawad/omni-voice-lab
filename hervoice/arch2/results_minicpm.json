@@ -1,0 +1,67 @@
+{
+  "model_id": "openbmb/MiniCPM-o-4_5",
+  "quant": "int4",
+  "architecture": "arch2-turn-based-single-s2s",
+  "turns": [
+    {
+      "input_wav": "examples/in_en_question.wav",
+      "measured_first_audio_s": 3.638,
+      "total_s": 5.171,
+      "reply_text": "The capital of France is Paris.",
+      "state": "ok",
+      "reply_audio_duration_s": 2.48,
+      "reply_rms": 0.084,
+      "rtf": 2.085,
+      "out_wav": "runs/arch2/minicpm/turn0_reply.wav",
+      "turn": 0,
+      "reasr_readability": {
+        "text": "The capital of France is Paris.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    },
+    {
+      "input_wav": "examples/in_fifa_question.wav",
+      "measured_first_audio_s": 1.77,
+      "total_s": 14.704,
+      "reply_text": "Brazil has won the men's World Cup a total of five times. They won in 1958, 1962, 1970, 1994, and 2002.",
+      "state": "ok",
+      "reply_audio_duration_s": 12.56,
+      "reply_rms": 0.0933,
+      "rtf": 1.171,
+      "out_wav": "runs/arch2/minicpm/turn1_reply.wav",
+      "turn": 1,
+      "reasr_readability": {
+        "text": "Brazil has won the men's World Cup a total of five times: they won in 1958, 1962, 1970, 1994, and 2002.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    },
+    {
+      "input_wav": "examples/hervoice_en_live_turn2.wav",
+      "measured_first_audio_s": 2.166,
+      "total_s": 17.603,
+      "reply_text": "Brazil has won the men's World Cup a total of five times. They won in the following years\u20141958, 1962, 1970, 1994, and 2002.",
+      "state": "ok",
+      "reply_audio_duration_s": 13.6,
+      "reply_rms": 0.1021,
+      "rtf": 1.294,
+      "out_wav": "runs/arch2/minicpm/turn2_reply.wav",
+      "turn": 2,
+      "reasr_readability": {
+        "text": "Brazil has won the men's World Cup a total of five times. They won in the following years: nineteen fifty eight, nineteen sixty two, nineteen seventy, nineteen ninety four, and two thousand two.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    }
+  ],
+  "summary": {
+    "n_turns": 3,
+    "n_ok": 3,
+    "median_ttfa_s": 2.166,
+    "median_rtf": 1.294,
+    "median_turn_total_s": 14.704,
+    "load_s": 425.41,
+    "peak_vram_gb": 14.71
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "task": "ARCH2 turn-based single-network speech-to-speech: evaluate Qwen3-Omni-30B-A3B-Instruct as a candidate vs the proven MiniCPM-o primary",
+  "date": "2026-07-09",
+  "git_branch": "arch-2-turnbased-s2s",
+  "git_commit": "e5fb7e26a85114750d0e0540c88a8db83e4bb77b",
+  "hardware": "NVIDIA RTX A6000 48GB (GPU1 only, CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=1)",
+  "env": ".venv-qwenomni",
+  "package_versions": {
+    "transformers": "5.13.0 (upgraded from 5.12.1 during this task to test packed-MoE compressed-tensors loading)",
+    "torch": "2.8.0+cu128 (re-pinned after an accidental 2.13.0 pull)",
+    "torchvision": "0.23.0+cu128",
+    "triton": "3.4.0",
+    "bitsandbytes": "0.49.2",
+    "compressed_tensors": "0.17.1 (uv-installed for this task)",
+    "accelerate": "1.14.0",
+    "qwen_omni_utils": "installed (present in venv)"
+  },
+  "models_evaluated": [
+    {"id": "Qwen/Qwen3-Omni-30B-A3B-Instruct", "role": "primary candidate (bf16 base)", "params": "35.26B total (thinker 31.72B, talker 3.32B, code2wav 0.22B)"},
+    {"id": "cyankiwi/Qwen3-Omni-30B-A3B-Instruct-AWQ-4bit", "role": "community int4 (compressed-tensors pack-quantized) to attempt 48GB fit", "on_disk_gb": 27.5}
+  ],
+  "quant_attempts": ["bf16", "bitsandbytes int4/int8", "compressed-tensors int4 (GPU-only)", "compressed-tensors int4 + CPU offload"],
+  "vram_peak_gb": 47.4,
+  "smoke_verdict": {
+    "loads_within_48gb": false,
+    "native_audio_out_capability": true,
+    "valid_speech_produced_on_a6000": false
+  },
+  "measured_turn_metrics": null,
+  "measured_turn_metrics_note": "STEP 2 was not reached: the smoke gate (load + run native audio-out within 48 GB) failed, so no TTFA/RTF/turn-total were measured and no demo wav was produced. No metrics or audio were fabricated.",
+  "recommendation": "MiniCPM-o remains the ARCH2 primary. Qwen3-Omni-30B-A3B-Instruct is a strong turn-based S2S architecture but does not fit a single 48 GB A6000 with its audio-out (talker) path in the current stack.",
+  "caveats": [
+    "bf16 requires ~80 GB (multi-GPU); official min 78.85 GB for the Instruct thinker+talker.",
+    "bitsandbytes cannot quantize the fused MoE experts (custom Qwen3OmniMoeThinkerTextExperts, not nn.Linear).",
+    "The community int4 checkpoint stores experts int4 on disk but transformers decompresses them to bf16 at load (DecompressExperts) -> still ~64 GB.",
+    "CPU-offload load succeeds but inference crashes on an accelerate-offload vs compressed_tensors quantized_forward incompatibility; not viable without patching library internals, and would be far too slow for turn-based S2S regardless.",
+    "A future path exists on hardware >= ~80 GB (e.g. H100/A100-80G or 2x A6000) in bf16, or if/when a true-int4 fused-MoE runtime (e.g. vLLM with audio-out, or GPTQ/AWQ kernels for the fused experts) lands."
+  ],
+  "files": [
+    "runs/arch2/qwenomni/smoke_qwenomni.py",
+    "runs/arch2/qwenomni/reasr_qwenomni.py",
+    "runs/arch2/qwenomni/smoke_result.json",
+    "runs/arch2/qwenomni/manifest.json",
+    "runs/arch2/qwenomni/smoke_run.log",
+    "runs/arch2/qwenomni/smoke_offload.log",
+    "docs/ARCH2_QWENOMNI.md"
+  ]
+}

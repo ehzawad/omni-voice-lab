@@ -1,0 +1,41 @@
+{
+  "model": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+  "also_tested_quant_checkpoint": "cyankiwi/Qwen3-Omni-30B-A3B-Instruct-AWQ-4bit (compressed-tensors int4, pack-quantized, group_size 32)",
+  "hardware": "single NVIDIA RTX A6000 48GB (GPU1, CUDA_VISIBLE_DEVICES=1)",
+  "env": ".venv-qwenomni, transformers 5.13.0 (upgraded from 5.12.1), torch 2.8.0+cu128, bitsandbytes 0.49.2, compressed_tensors 0.17.1, accelerate 1.14.0",
+  "git_commit": "e5fb7e26a85114750d0e0540c88a8db83e4bb77b",
+
+  "gate1_loads_within_48gb_with_working_quant": false,
+  "gate2_native_audio_out_capability": true,
+  "gate2_evidence": "config.enable_audio_output=true; model has talker (3.32B params) + code2wav vocoder (0.22B) + code_predictor; documented speakers Ethan/Chelsie/Aiden; audio output sample rate 24000. The Instruct checkpoint is genuinely speech-to-speech capable (NOT text-out only). Measured on meta device: thinker=31.72B, talker=3.32B, code2wav=0.22B.",
+  "gate3_valid_speech_produced_on_a6000": false,
+
+  "vram_peak_gb_observed": 47.4,
+  "vram_note": "Every single-GPU load path saturated the full 47.4 GiB and OOM'd; the 48 GB card was the binding constraint.",
+
+  "load_paths_tried": [
+    {
+      "path": "bf16, device_map=cuda:0",
+      "result": "Model card minimum is 78.85 GB (BF16, FlashAttention2, 15s video) for the Instruct thinker+talker; ~70 GB of raw weights alone. Exceeds 48 GB.",
+      "verdict": "does not fit"
+    },
+    {
+      "path": "bitsandbytes int4 (nf4) / int8, device_map=cuda:0",
+      "result": "OOM at ~75% of weight load, filled 47.4 GiB. Root cause: the MoE experts are a fused custom module Qwen3OmniMoeThinkerTextExperts (one packed tensor per layer), NOT nn.Linear. bitsandbytes only quantizes nn.Linear, so the ~31B of experts stay bf16 -> ~64 GB -> OOM.",
+      "verdict": "bnb cannot quantize the fused MoE experts; does not fit"
+    },
+    {
+      "path": "community int4 compressed-tensors checkpoint (cyankiwi), device_map=cuda:0",
+      "result": "OOM at the last layer. transformers' compressed-tensors path DECOMPRESSES the packed int4 fused experts back to bf16 at load time (DecompressExperts), so the runtime footprint returns to ~64 GB -> OOM. On disk 27.5 GB, but not a true-int4 runtime for the fused experts.",
+      "verdict": "int4 on disk, decompressed to bf16 at load; does not fit"
+    },
+    {
+      "path": "community int4 checkpoint + device_map=auto, max_memory {0:40GiB, cpu:100GiB} (CPU offload)",
+      "result": "Model LOADED across GPU+CPU. Inference then crashed: AttributeError 'Linear' object has no attribute 'weight' in compressed_tensors.quantization.lifecycle.forward.quantized_forward under an accelerate offload hook. accelerate parameter-offload hooks and compressed_tensors quantized_forward do not compose (offloaded weight not on-loaded before the quantized matmul).",
+      "verdict": "loads with offload but cannot run inference without patching library internals; no valid speech produced"
+    }
+  ],
+
+  "conclusion": "On the mandated environment (single 48 GB A6000, transformers stack), Qwen3-Omni-30B-A3B-Instruct cannot be loaded AND run with its native audio-out (talker) path within 48 GB. bf16 needs ~80 GB (multi-GPU); the fused MoE experts have no working single-GPU int4 runtime in the current transformers/compressed-tensors/accelerate stack. Native audio-out is a genuine architectural capability but could not be exercised on this hardware. No reply wav was produced; none was fabricated. MiniCPM-o remains the arch-2 primary.",
+  "errors": []
+}

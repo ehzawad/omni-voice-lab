@@ -1,0 +1,89 @@
+{
+  "architecture": "arch2-turn-based-single-speech-to-speech",
+  "model_id": "openbmb/MiniCPM-o-4_5",
+  "quant": "int4",
+  "single_network": true,
+  "external_asr_in_generation_path": false,
+  "external_tts_in_generation_path": false,
+  "reasr_is_readability_check_only": true,
+  "gpu": "RTX A5000 (GPU0, PCI_BUS_ID)",
+  "git_commit": "e5fb7e26a85114750d0e0540c88a8db83e4bb77b",
+  "ref_voice": "examples/ref_female.wav",
+  "inputs": [
+    "examples/in_en_question.wav",
+    "examples/in_fifa_question.wav",
+    "examples/hervoice_en_live_turn2.wav"
+  ],
+  "vram_peak_torch_gb": 14.71,
+  "vram_device_used_mb_nvidia_smi": 16098,
+  "turns": [
+    {
+      "input_wav": "examples/in_en_question.wav",
+      "measured_first_audio_s": 3.638,
+      "total_s": 5.171,
+      "reply_text": "The capital of France is Paris.",
+      "state": "ok",
+      "reply_audio_duration_s": 2.48,
+      "reply_rms": 0.084,
+      "rtf": 2.085,
+      "out_wav": "runs/arch2/minicpm/turn0_reply.wav",
+      "turn": 0,
+      "reasr_readability": {
+        "text": "The capital of France is Paris.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    },
+    {
+      "input_wav": "examples/in_fifa_question.wav",
+      "measured_first_audio_s": 1.77,
+      "total_s": 14.704,
+      "reply_text": "Brazil has won the men's World Cup a total of five times. They won in 1958, 1962, 1970, 1994, and 2002.",
+      "state": "ok",
+      "reply_audio_duration_s": 12.56,
+      "reply_rms": 0.0933,
+      "rtf": 1.171,
+      "out_wav": "runs/arch2/minicpm/turn1_reply.wav",
+      "turn": 1,
+      "reasr_readability": {
+        "text": "Brazil has won the men's World Cup a total of five times: they won in 1958, 1962, 1970, 1994, and 2002.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    },
+    {
+      "input_wav": "examples/hervoice_en_live_turn2.wav",
+      "measured_first_audio_s": 2.166,
+      "total_s": 17.603,
+      "reply_text": "Brazil has won the men's World Cup a total of five times. They won in the following years\u20141958, 1962, 1970, 1994, and 2002.",
+      "state": "ok",
+      "reply_audio_duration_s": 13.6,
+      "reply_rms": 0.1021,
+      "rtf": 1.294,
+      "out_wav": "runs/arch2/minicpm/turn2_reply.wav",
+      "turn": 2,
+      "reasr_readability": {
+        "text": "Brazil has won the men's World Cup a total of five times. They won in the following years: nineteen fifty eight, nineteen sixty two, nineteen seventy, nineteen ninety four, and two thousand two.",
+        "language": "English",
+        "model": "qwen3-asr-0.6b"
+      }
+    }
+  ],
+  "summary": {
+    "n_turns": 3,
+    "n_ok": 3,
+    "median_ttfa_s": 2.166,
+    "median_rtf": 1.294,
+    "median_turn_total_s": 14.704,
+    "load_s": 425.41,
+    "peak_vram_gb": 14.71
+  },
+  "caveats": [
+    "Naturalness/quality of speech needs human MOS; not measured here.",
+    "re-ASR is an independent readability check (Qwen3-ASR on the output wav), NOT WER -- no ground-truth transcript for free-form replies.",
+    "int4 quantization of the LLM (audio/TTS/vision kept fp).",
+    "Single RTX A5000, English only, file-driven single discrete turns, no live mic.",
+    "Strict discrete-turn framing: NOT full-duplex / no barge-in (that is architecture 3).",
+    "Open local analog of GPT-Live Advanced Voice Mode, NOT GPT-Live itself."
+  ]
+}

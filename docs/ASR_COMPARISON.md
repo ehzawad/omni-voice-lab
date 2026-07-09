@@ -89,6 +89,63 @@ Minimum honest next eval:
 Until that exists, the honest claim is: **qwen3-asr-0.6b is the best smoke-test default in this
 repo run, not proven best ASR.**
 
+## Larger eval (FLEURS en_us, 100 clips)
+
+This is the "make it defensible" follow-up the section above called for. It **overturns the clean
+0.6B-is-best headline**: at 100 clips the 0.6B model is no longer alone at the top.
+
+- **Eval set:** 100 English clips materialized from the **FLEURS `en_us` test split** (`audio` +
+  `transcription`), 16 kHz mono wav + refs in `data/asr_eval/fleurs_en/` (`manifest.jsonl`), ~954 s
+  of audio total (mean ~9.5 s/clip). Built by `hervoice/modular/materialize_fleurs.py`. **Caveat:**
+  FLEURS is *clean, read/studio speech* — this does **not** measure conversational, noisy, accented,
+  or long-form robustness. It is a bigger and statistically defensible slice, not a hard one.
+- **Scoring:** single shared normalization on **both** ref and hyp — lowercase, strip punctuation,
+  collapse whitespace, **and spell digits as words** (`12`==`twelve`, reusing the `numnorm()` logic
+  from `rescore_asr.py`) so SenseVoice's ITN is not penalized. Reported: **macro-WER** (mean over
+  clips), **micro/overall-WER** (total edits / total ref words), CER, and a **bootstrap 95% CI**
+  (1000 resamples over utterances) on WER.
+- **Latency:** one untimed warmup call discarded; **steady-state median + p90** per-clip latency and
+  median RTF over the 100 clips. VRAM = GPU0 `nvidia-smi` delta across model load. GPU0 (RTX A5000)
+  only; single model in memory at a time.
+- **Harness:** `hervoice/modular/asr_bench_large.py`. Raw numbers: `results_asr_bench_large.json`.
+- **Failures:** **0 clips failed/errored** for any of the 5 models (all n=100 scored).
+
+### Ranked table (by macro-WER)
+
+| Rank | Model | macro-WER | 95% CI | micro-WER | CER | median lat | p90 lat | RTF | VRAM |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | **qwen3-asr-1.7b** | **0.0357** | [0.0249, 0.0481] | 0.0356 | 0.0172 | 1.24s | 1.93s | 0.137 | 3.36 GB |
+| 2 | qwen3-asr-0.6b | 0.0485 | [0.0377, 0.0602] | 0.0488 | 0.0245 | 1.12s | 1.72s | 0.127 | 1.67 GB |
+| 3 | funasr-nano | 0.0574 | [0.0451, 0.0698] | 0.0568 | 0.0253 | 1.21s | 1.79s | 0.134 | 2.11 GB |
+| 4 | sensevoice | 0.0845 | [0.0696, 0.0999] | 0.0844 | 0.0346 | **0.09s** | **0.10s** | **0.010** | 1.15 GB |
+| 5 | paraformer-zh | 0.2238 | [0.1977, 0.2587] | 0.2265 | 0.1039 | 0.08s | 0.09s | 0.008 | 0.84 GB |
+
+### Does the "0.6B is best" conclusion hold at scale?
+
+**No — not as a clean win.** Two honest changes from the 4-clip smoke test:
+
+1. **The 0.000 WER was an artifact of the tiny set.** On 100 clips qwen3-asr-0.6b scores **0.049
+   WER**, not zero. Nobody is perfect on real data.
+2. **1.7B now has the lowest point-estimate WER (0.036)**, ahead of 0.6B (0.049) and funasr-nano
+   (0.057). So the *nominal* crown moves from 0.6B to **1.7B**.
+
+**But the top models tie within confidence intervals.** The CIs of the top three overlap:
+- qwen3-asr-1.7b [0.0249, 0.0481] vs qwen3-asr-0.6b [0.0377, 0.0602] — **overlap** (~0.038–0.048).
+- qwen3-asr-0.6b [0.0377, 0.0602] vs funasr-nano [0.0451, 0.0698] — **substantial overlap**.
+
+So at N=100 on clean read speech the top three are a **statistical tie**, with 1.7B nominally best.
+The gap 1.7B→0.6B is only ~1.3 WER points across overlapping intervals; the clear, non-overlapping
+separations are between that top cluster and **sensevoice** (0.084, distinctly worse but still very
+usable and by far the **fastest**, RTF 0.01), and **paraformer-zh** (0.224, genuinely weak on
+English, as expected for a Chinese-first model — its errors are real misrecognitions, not ITN).
+
+**Practical verdict is unchanged even though the ranking moved:** **qwen3-asr-0.6b remains the best
+default** for this build — it is within CI of the best model at **half the VRAM (1.67 vs 3.36 GB)**
+and slightly lower latency. Choose **qwen3-asr-1.7b** only if you want the best point-estimate
+accuracy and can pay ~2x VRAM for a difference that is not statistically distinguishable here.
+Choose **sensevoice** when latency or its emotion/event/language tags matter more than the ~3.5-point
+WER gap. All five models run comfortably faster than real time (RTF ≤ 0.14) on GPU0.
+
 ## Verdict for English
 
 **Pick `qwen3-asr-0.6b` as the provisional default for this build.** On this set it is the only model with

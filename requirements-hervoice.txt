@@ -7,9 +7,9 @@
 #       --index-url https://download.pytorch.org/whl/cu128
 #   uv pip install --python .venv-hervoice/bin/python -r requirements-hervoice.txt
 
-torch==2.8.0
+torch==2.12.1
 torchaudio==2.8.0
-transformers==4.51.0
+transformers==5.5.0
 peft
 accelerate
 snac

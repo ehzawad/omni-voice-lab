@@ -100,7 +100,9 @@ def build_app():
             await sock.close(code=4400); return
         if msg.get("type") != "hello":
             await sock.close(code=4400); return
-        if C.GW_TOKEN and msg.get("token") != C.GW_TOKEN:
+        # Fail CLOSED. An unset token used to mean "allow everyone", which on a shared box
+        # means any other account here can open a microphone session.
+        if not C.GW_TOKEN or msg.get("token") != C.GW_TOKEN:
             await sock.send_text(json.dumps({"type": "error", "message": "bad token"}))
             await sock.close(code=4401); return
         with _sessions_lock:
@@ -172,9 +174,17 @@ def build_app():
         finally:
             pump_task.cancel()
             tl.stop()                       # cancels any in-flight generation
-            th.join(timeout=15.0)
-            with _sessions_lock:
-                _sessions -= 1
+            # join() is blocking; awaiting it in a thread keeps the event loop responsive.
+            stopped = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: (th.join(timeout=15.0), not th.is_alive())[1])
+            if stopped:
+                with _sessions_lock:
+                    _sessions -= 1
+            else:
+                # The slot is NOT released: work may still be touching the GPU, and handing
+                # the budget to a new session while that is true is how two generations end
+                # up running at once.
+                log.error("turn loop did not stop within 15s; holding the session slot")
             try:
                 await sock.close()
             except Exception:
@@ -189,6 +199,8 @@ if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     if not C.GW_TOKEN:
-        log.warning("HV_GW_TOKEN is unset: anyone with an account on this box can reach "
-                    "127.0.0.1:%d and speak to the bot. Set it.", C.GW_PORT)
+        raise SystemExit(
+            "HV_GW_TOKEN is not set. This endpoint accepts live microphone audio and binds to "
+            "127.0.0.1, which every other account on this shared box can reach. Refusing to "
+            "start without a token.")
     uvicorn.run(app, host=C.GW_HOST, port=C.GW_PORT, log_level="warning")

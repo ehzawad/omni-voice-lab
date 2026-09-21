@@ -73,7 +73,13 @@ _wait_ready() {  # _wait_ready <svc> <timeout_s>
   t0=$(date +%s)
   while :; do
     if curl -s -m 3 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null | grep -q '^200$'; then
-      echo "  $svc READY after $(( $(date +%s) - t0 ))s"; return 0
+      # A 200 alone is not proof it is OURS: a failed bind plus somebody else's listener on
+      # that port looks identical. Require our verified pid to still be alive too.
+      if _owned "$(cat "$(_pidfile "$svc")" 2>/dev/null)" "$(_marker "$svc")"; then
+        echo "  $svc READY after $(( $(date +%s) - t0 ))s"; return 0
+      fi
+      echo "  $svc: port $port answers 200 but our process is gone -- someone else holds it"
+      return 1
     fi
     if ! _owned "$(cat "$(_pidfile "$svc")" 2>/dev/null)" "$(_marker "$svc")"; then
       echo "  $svc DIED during startup -- see $RUN/$svc.log"; return 1
@@ -124,9 +130,21 @@ _status() {
 cmd="${1:-status}"; target="${2:-all}"
 case "$cmd" in
   start)
+    # STRICTLY SEQUENTIAL, start-then-verify, fail fast.
+    # Two reasons this is not just tidiness:
+    #  1. vLLM profiles free GPU memory at startup to size its KV cache, and that profiling
+    #     assumes other processes are NOT changing their allocation while it runs. Loading
+    #     ASR and TTS concurrently corrupts that measurement.
+    #  2. Starting everything before checking anything means a failure surfaces only after
+    #     three more processes have already taken GPU memory.
     [ "$target" = "all" ] && set -- llm asr tts gw || set -- "$target"
-    for s in "$@"; do _start_one "$s"; done
-    for s in "$@"; do _wait_ready "$s" "${HV_READY_TIMEOUT_S:-600}"; done
+    for s in "$@"; do
+      _start_one "$s" || { echo "  ABORT: $s failed to start"; exit 1; }
+      _wait_ready "$s" "${HV_READY_TIMEOUT_S:-600}" || {
+        echo "  ABORT: $s never became ready; stopping what we started"
+        for t in "$@"; do _stop_one "$t"; done
+        exit 1; }
+    done
     _status ;;
   stop)
     [ "$target" = "all" ] && set -- gw tts asr llm || set -- "$target"

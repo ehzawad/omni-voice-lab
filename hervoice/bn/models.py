@@ -53,6 +53,13 @@ SR_OUT = 24000
 
 
 def vram_gb():
+    """PyTorch ALLOCATOR bytes only -- NOT whole-process VRAM.
+
+    Allocations outside the caching allocator (CUDA context, cuBLAS/cuDNN workspaces, NCCL)
+    are invisible here, so this always UNDER-reports. For capacity decisions use NVML per
+    process (`nvidia-smi --query-compute-apps=pid,used_memory`), which is what the service
+    supervisor reports.
+    """
     return round(torch.cuda.memory_allocated() / 2 ** 30, 2) if torch.cuda.is_available() else 0.0
 
 
@@ -194,15 +201,19 @@ class BnTts:
     def chunks(self, text):
         return chunk_bn(normalize(text), self.max_bytes)
 
-    def synth_chunk(self, chunk, seed=1234):
-        """One chunk -> float32 @ 24 kHz. Not interruptible; this call is the cancel unit."""
+    def synth_chunk(self, chunk, seed=1234, nfe=None):
+        """One chunk -> float32 @ 24 kHz. Not interruptible; this call is the cancel unit.
+
+        nfe is per call: mutating self.nfe from a request handler races other requests.
+        """
+        steps = int(nfe or self.nfe)
         torch.manual_seed(seed)
         np.random.seed(seed % (2 ** 32))
         dur = est_duration_frames(self.ref_frames, self.ref_text + " ", chunk, self.speed)
         with torch.inference_mode():
             gen, _ = self.model.sample(
                 cond=self.ref, text=[self.ref_text + " " + chunk], duration=dur,
-                steps=self.nfe, cfg_strength=self.cfg, sway_sampling_coef=self.sway,
+                steps=steps, cfg_strength=self.cfg, sway_sampling_coef=self.sway,
                 seed=seed,
                 use_epss=False,   # IndicF5's vendored sampler has no EPSS; upstream defaults it ON
             )

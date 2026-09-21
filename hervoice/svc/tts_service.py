@@ -24,6 +24,7 @@ the splitter is pure text processing and needs no GPU.
 import logging
 import os
 import sys
+import threading
 import time
 
 import numpy as np
@@ -36,6 +37,13 @@ log = logging.getLogger("tts-svc")
 _tts = None
 _ready = False
 _err = None
+# FastAPI runs non-async endpoints in a threadpool, so two requests CAN reach the GPU model
+# at once. One flow-matching call already saturates the card, and overlapping them only makes
+# both slower while doubling peak VRAM. Serialise explicitly.
+_gpu = threading.Lock()
+
+MAX_TEXT_BYTES = 2000
+MIN_NFE, MAX_NFE = 4, 64
 
 
 def _load():
@@ -99,14 +107,16 @@ def build_app():
             raise HTTPException(status_code=503, detail=f"model not ready: {_err}")
         if not req.text.strip():
             raise HTTPException(status_code=400, detail="empty text")
-        nfe = req.nfe or C.TTS_NFE
-        old = _tts.nfe
+        if len(req.text.encode("utf-8")) > MAX_TEXT_BYTES:
+            raise HTTPException(status_code=413, detail=f"text over {MAX_TEXT_BYTES} bytes; "
+                                                       "split it with /chunk first")
+        nfe = int(req.nfe or C.TTS_NFE)
+        if not (MIN_NFE <= nfe <= MAX_NFE):
+            raise HTTPException(status_code=400, detail=f"nfe must be {MIN_NFE}..{MAX_NFE}")
         t = time.time()
-        try:
-            _tts.nfe = nfe
-            w = _tts.synth_chunk(req.text, seed=req.seed)
-        finally:
-            _tts.nfe = old
+        # nfe is passed per call; mutating the shared model's attribute raced between threads.
+        with _gpu:
+            w = _tts.synth_chunk(req.text, seed=req.seed, nfe=nfe)
         ms = (time.time() - t) * 1000
         pcm = np.ascontiguousarray(w, dtype="<f4").tobytes()
         return Response(

@@ -21,6 +21,7 @@ the owner's own published benchmark for this model, so there is nothing worth st
 import logging
 import os
 import sys
+import threading
 import time
 
 import numpy as np
@@ -33,6 +34,7 @@ log = logging.getLogger("asr-svc")
 _model = None
 _ready = False
 _err = None
+_gpu = threading.Lock()   # non-async endpoints share a threadpool; serialise GPU access
 
 
 def _load():
@@ -74,7 +76,13 @@ def build_app():
     async def transcribe(request: Request):
         if not _ready:
             raise HTTPException(status_code=503, detail=f"model not ready: {_err}")
+        cl = request.headers.get("content-length")
+        max_bytes = int(C.MAX_TURN_SECONDS * C.SR_IN * 4) + 1024
+        if cl is not None and int(cl) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"body over {max_bytes} bytes")
         raw = await request.body()
+        if len(raw) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"body over {max_bytes} bytes")
         if len(raw) % 4:
             raise HTTPException(status_code=400, detail="body must be float32 PCM (length % 4 == 0)")
         audio = np.frombuffer(raw, dtype="<f4")
@@ -87,7 +95,7 @@ def build_app():
             audio = audio[-int(max_s * C.SR_IN):]     # keep the most recent speech
         t = time.time()
         import torch
-        with torch.inference_mode():
+        with _gpu, torch.inference_mode():
             out = _model.transcribe([np.ascontiguousarray(audio, dtype=np.float32)],
                                     batch_size=1, verbose=False)
         text = ""

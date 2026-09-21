@@ -73,6 +73,7 @@ class TurnLoop:
         self.turn = 0
         self._dropped = 0
         self._turn_degraded = False
+        self._wedged = False
 
         self._buf = []
         self._buf_n = 0
@@ -154,6 +155,8 @@ class TurnLoop:
 
     def _on_vad(self, ev):
         from hervoice.live.turn_detector import VadEvent
+        if self._wedged:
+            return
         if ev.kind == VadEvent.SPEECH_START:
             if self.state == IDLE:
                 self._begin_turn(barge_in=False)
@@ -305,9 +308,12 @@ class TurnLoop:
             return
         th.join(timeout=timeout)
         if th.is_alive():                     # LiveLoop discarded the ref without checking
-            log.error("generation thread still alive after %.1fs; leaking it deliberately "
-                      "rather than pretending it stopped", timeout)
-            self._emit("error", message="generation thread did not stop in time")
+            # Do NOT clear the reference and do NOT allow another turn: the worker may still
+            # be inside a flow-matching call on the GPU. Wedging loudly beats two concurrent
+            # generations sharing one budget.
+            self._wedged = True
+            log.error("generation thread still alive after %.1fs; refusing further turns", timeout)
+            self._emit("error", message="generation did not stop; session wedged, reconnect")
         else:
             self._gen_thread = None
 

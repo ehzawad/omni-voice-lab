@@ -127,11 +127,25 @@ $("start").onclick = async () => {
   try {
     // AEC is a correctness requirement, not a nicety: without it the assistant's own voice
     // re-enters the mic and Silero barges the bot in on itself, forever.
-    stream = await navigator.mediaDevices.getUserMedia({ video:false, audio:{
-      channelCount:{ideal:1}, echoCancellation:true, noiseSuppression:true, autoGainControl:true }});
+    // echoCancellation:true only REQUIRES cancelling WebRTC remote tracks (spec MUST) and merely
+    // SHOULD cancel other system output -- and our TTS plays through an AudioWorklet, not a
+    // PeerConnection. Chrome 141+ accepts echoCancellation:"all", which makes it a MUST. Ask for
+    // that first; fall back to the boolean where it is not supported, and SAY which we got.
+    const base = { channelCount:{ideal:1}, noiseSuppression:true, autoGainControl:true };
+    let aecMode = "all";
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video:false,
+        audio:{ ...base, echoCancellation:{ exact:"all" } }});
+    } catch (e) {
+      aecMode = "boolean";
+      stream = await navigator.mediaDevices.getUserMedia({ video:false,
+        audio:{ ...base, echoCancellation:true }});
+    }
     const st = stream.getAudioTracks()[0].getSettings();
-    $("mAec").textContent = st.echoCancellation ? "on" : "OFF (feedback likely)";
-    log(`[mic] ${JSON.stringify({ec:st.echoCancellation, ns:st.noiseSuppression, agc:st.autoGainControl, sr:st.sampleRate})}`);
+    const ecSetting = st.echoCancellation;
+    $("mAec").textContent = ecSetting === false ? "OFF (feedback likely)"
+                          : aecMode === "all" ? "on (all)" : "on (boolean; worklet playback only SHOULD be cancelled)";
+    log(`[mic] ${JSON.stringify({ec:st.echoCancellation, ecMode:aecMode, ns:st.noiseSuppression, agc:st.autoGainControl, sr:st.sampleRate})}`);
 
     // Ask the browser for contexts already at our rates; it resamples with proper filters.
     capCtx  = new AudioContext({sampleRate: SR_IN});

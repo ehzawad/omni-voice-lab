@@ -12,6 +12,7 @@ Cancellation is checked at every point where work can still be avoided:
 """
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -28,6 +29,15 @@ SENT_MARKS = ("।", "?", "!")
 def _post(url, data, headers, timeout):
     return urllib.request.urlopen(
         urllib.request.Request(url, data=data, headers=headers), timeout=timeout)
+
+
+_MD = re.compile(r"(\*\*|__|\*|`|#{1,6}\s|^\s*[-*]\s+)", re.M)
+
+
+def _despeak_markdown(text):
+    """LLMs emit markdown; a TTS would read the asterisks aloud. Strip formatting only --
+    never touch letters, dandas or digits."""
+    return _MD.sub("", text).replace("  ", " ")
 
 
 def _split_sentence(buf):
@@ -67,11 +77,10 @@ class ServiceEngine:
         return d
 
     # -------------------------------------------------------------------- brain
-    def _brain_stream(self, user_text, cancel):
+    def _brain_stream(self, messages, cancel):
         body = json.dumps({
             "model": self.model,
-            "messages": [{"role": "system", "content": self.system},
-                         {"role": "user", "content": user_text}],
+            "messages": messages,
             "max_tokens": C.LLM_MAX_TOKENS, "temperature": C.LLM_TEMPERATURE, "stream": True,
         }).encode()
         r = _post(f"{self.llm_url}/v1/chat/completions", body,
@@ -117,36 +126,49 @@ class ServiceEngine:
         return np.frombuffer(r.read(), dtype="<f4")
 
     # -------------------------------------------------------------------- turn
-    def respond(self, user_text, cancel, on_delta, on_sentence, on_audio):
-        buf, n_sent = "", 0
-        for delta in self._brain_stream(user_text, cancel):
+    def respond(self, messages, cancel, on_delta, on_sentence, on_audio):
+        """Stream a reply for `messages` (system + history + current user turn).
+
+        Returns (generated_text, spoken_text). They differ when the turn is cancelled: the
+        caller should remember only what the user actually HEARD, which is `spoken_text`.
+        """
+        buf, n_sent, generated, spoken = "", 0, [], []
+        for delta in self._brain_stream(messages, cancel):
             if cancel.is_set():
-                return
+                break
             on_delta(delta)
             buf += delta
+            generated.append(delta)
             sent, buf = _split_sentence(buf)
             while sent:
                 if cancel.is_set():
-                    return
-                self._speak(sent, n_sent, cancel, on_sentence, on_audio)
+                    return "".join(generated), " ".join(spoken)
+                if self._speak(sent, n_sent, cancel, on_sentence, on_audio):
+                    spoken.append(sent)
                 n_sent += 1
                 sent, buf = _split_sentence(buf)
         tail = buf.strip()
         if tail and not cancel.is_set():
-            self._speak(tail, n_sent, cancel, on_sentence, on_audio)
+            if self._speak(tail, n_sent, cancel, on_sentence, on_audio):
+                spoken.append(tail)
+        return "".join(generated), " ".join(spoken)
 
     def _speak(self, sentence, idx, cancel, on_sentence, on_audio):
-        if not sentence.strip():
-            return
+        """Synthesise one sentence. Returns True only if ALL its audio was emitted."""
+        sentence = _despeak_markdown(sentence).strip()
+        if not sentence:
+            return False
         on_sentence(sentence)
-        for ci, ch in enumerate(self._chunks(sentence)):
+        chunks = self._chunks(sentence)
+        for ci, ch in enumerate(chunks):
             if cancel.is_set():
-                return          # the only real cancel lever: do not START a stale chunk
+                return False    # the only real cancel lever: do not START a stale chunk
             try:
                 pcm = self._synth(ch, seed=1234 + 100 * idx + ci)
             except (urllib.error.URLError, OSError) as e:
                 log.error("TTS /synthesize failed: %r", e)
-                return
+                return False
             if cancel.is_set():
-                return          # finished, but already stale -- drop rather than play
+                return False    # finished, but already stale -- drop rather than play
             on_audio(pcm)
+        return bool(chunks)

@@ -1,0 +1,27 @@
+# The gateway holds no model except Silero VAD (a few MB, CPU). No CUDA, no torch GPU build.
+# Small image, independent lifecycle, and it is the only service that ever changes shape as
+# the browser client evolves.
+#
+#   docker build -f deploy/Dockerfile.gateway -t hervoice-gateway:latest .
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HF_HUB_DISABLE_PROGRESS_BARS=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+# CPU torch only for Silero's tiny model; the +cpu wheel keeps the image well under 1 GB.
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 \
+    && pip install fastapi "uvicorn[standard]" websockets numpy silero-vad onnxruntime soundfile
+
+COPY hervoice/svc/ ./hervoice/svc/
+COPY hervoice/live/turn_detector.py ./hervoice/live/turn_detector.py
+COPY hervoice/live/__init__.py ./hervoice/live/__init__.py
+RUN touch hervoice/__init__.py
+
+# Silero downloads its weights on first use; bake them so a cold container has no network dependency.
+RUN python -c "from silero_vad import load_silero_vad; load_silero_vad()"
+
+EXPOSE 8100
+ENTRYPOINT ["python", "-m", "hervoice.svc.gateway"]

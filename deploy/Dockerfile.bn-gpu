@@ -1,0 +1,40 @@
+# One image for BOTH GPU model services; the entrypoint picks asr|tts.
+# They share an identical dependency set (torch 2.8 cu128, nemo_toolkit[asr] 2.7.3, F5-TTS
+# pinned at 9c614e9) and an identical weights cache, so two images would be the same image.
+#
+# CUDA 12.8 runtime base: the pip wheels already bundle the CUDA libraries they need, but NeMo
+# wants libsndfile/ffmpeg and a real glibc. The HOST driver must be >= 580.65.06 if the vLLM
+# (CUDA 13.0) container runs on the same machine; that one driver serves both.
+#
+#   docker build -f deploy/Dockerfile.bn-gpu -t hervoice-bn-gpu:latest .
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/hf HF_HUB_DISABLE_PROGRESS_BARS=1 \
+    CUDA_DEVICE_ORDER=PCI_BUS_ID PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3.12 python3.12-venv python3-pip git curl ffmpeg libsndfile1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+WORKDIR /app
+COPY requirements-bnweb.txt ./
+RUN uv venv --python 3.12 /venv \
+    && uv pip install --python /venv/bin/python torch==2.8.0 torchaudio==2.8.0 \
+         --index-url https://download.pytorch.org/whl/cu128 \
+    && uv pip install --python /venv/bin/python -r requirements-bnweb.txt onnxruntime \
+    && git clone https://github.com/SWivid/F5-TTS /opt/F5-TTS \
+    && git -C /opt/F5-TTS checkout 9c614e9657089213efc6a7421b30630be138a3f5 \
+    && uv pip install --python /venv/bin/python -e /opt/F5-TTS
+
+COPY hervoice/ ./hervoice/
+
+# Weights live in a volume at /hf, never in the image (~13 GB across the three models).
+VOLUME ["/hf"]
+
+COPY deploy/entrypoint-bn-gpu.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["asr"]

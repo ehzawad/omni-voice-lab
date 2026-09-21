@@ -1,0 +1,77 @@
+{
+  "_about": "Scripted multi-turn Bengali dialogues for testing CONVERSATION MEMORY without a human. Each later turn depends on an earlier one: a pronoun, an ellipsis, or a topic carried forward. `expect.any` lists strings at least one of which a correct, context-aware answer should contain; `memory` marks turns that are UNANSWERABLE without the preceding turns. Judged by keyword hit + an LLM judge; neither alone is trusted.",
+  "scenarios": [
+    {
+      "id": "capital_followups",
+      "domain": "general",
+      "turns": [
+        {"user": "বাংলাদেশের রাজধানীর নাম কি?", "memory": false,
+         "expect": {"any": ["ঢাকা"]}},
+        {"user": "সেখানে কোন নদী আছে?", "memory": true, "refers_to": "ঢাকা",
+         "expect": {"any": ["বুড়িগঙ্গা", "তুরাগ", "শীতলক্ষ্যা", "বালু"]}},
+        {"user": "ওই শহরটা কত পুরনো?", "memory": true, "refers_to": "ঢাকা",
+         "expect": {"any": ["শতাব্দী", "বছর", "মুঘল", "প্রাচীন", "৪০০", "চারশ", "১৬"]}}
+      ]
+    },
+    {
+      "id": "nid_documents",
+      "domain": "election_commission",
+      "turns": [
+        {"user": "নতুন জাতীয় পরিচয়পত্র করতে কী কী কাগজ লাগে?", "memory": false,
+         "expect": {"any": ["জন্ম", "সনদ", "ছবি", "নাগরিক"]}},
+        {"user": "এটা করতে কত টাকা লাগে?", "memory": true, "refers_to": "জাতীয় পরিচয়পত্র",
+         "expect": {"any": ["টাকা", "ফি", "বিনামূল্য", "ফ্রি", "খরচ"]}},
+        {"user": "আর কতদিন সময় লাগবে পেতে?", "memory": true, "refers_to": "জাতীয় পরিচয়পত্র",
+         "expect": {"any": ["দিন", "সপ্তাহ", "মাস", "সময়"]}}
+      ]
+    },
+    {
+      "id": "passport_chain",
+      "domain": "foreign_ministry",
+      "turns": [
+        {"user": "ই-পাসপোর্ট করতে কী লাগে?", "memory": false,
+         "expect": {"any": ["জাতীয় পরিচয়পত্র", "এনআইডি", "জন্ম", "ছবি", "আবেদন", "অনলাইন"]}},
+        {"user": "ওটা কত পাতার হয়?", "memory": true, "refers_to": "ই-পাসপোর্ট",
+         "expect": {"any": ["৪৮", "৬৪", "পাতা", "পৃষ্ঠা"]}},
+        {"user": "আর মেয়াদ কত বছর?", "memory": true, "refers_to": "ই-পাসপোর্ট",
+         "expect": {"any": ["৫", "১০", "পাঁচ", "দশ", "বছর", "মেয়াদ"]}}
+      ]
+    },
+    {
+      "id": "land_mutation",
+      "domain": "land_ministry",
+      "turns": [
+        {"user": "জমির নামজারি কীভাবে করব?", "memory": false,
+         "expect": {"any": ["আবেদন", "অনলাইন", "ভূমি", "অফিস", "দলিল", "খতিয়ান"]}},
+        {"user": "এর জন্য কোথায় যেতে হবে?", "memory": true, "refers_to": "নামজারি",
+         "expect": {"any": ["ভূমি অফিস", "উপজেলা", "সহকারী কমিশনার", "এসিল্যান্ড", "অনলাইন", "ভূমি"]}},
+        {"user": "ফি কত?", "memory": true, "refers_to": "নামজারি",
+         "expect": {"any": ["টাকা", "ফি", "খরচ"]}}
+      ]
+    },
+    {
+      "id": "self_intro_recall",
+      "domain": "memory_probe",
+      "turns": [
+        {"user": "আমার নাম রফিক। আমি চট্টগ্রামে থাকি।", "memory": false,
+         "expect": {"any": ["রফিক", "চট্টগ্রাম", "ধন্যবাদ", "স্বাগত", "খুশি", "কেমন"]}},
+        {"user": "আমার শহরের আবহাওয়া সাধারণত কেমন?", "memory": true, "refers_to": "চট্টগ্রাম",
+         "expect": {"any": ["চট্টগ্রাম", "সমুদ্র", "আর্দ্র", "গরম", "বৃষ্টি", "উপকূল"]}},
+        {"user": "আমার নাম কী বলেছিলাম?", "memory": true, "refers_to": "রফিক",
+         "expect": {"any": ["রফিক"]}}
+      ]
+    },
+    {
+      "id": "topic_switch_then_return",
+      "domain": "memory_probe",
+      "turns": [
+        {"user": "বাংলাদেশের জাতীয় ফুল কোনটি?", "memory": false,
+         "expect": {"any": ["শাপলা"]}},
+        {"user": "আজ কি বৃষ্টি হবে?", "memory": false,
+         "expect": {"any": ["আবহাওয়া", "জানি না", "বলতে পারছি না", "তথ্য", "পূর্বাভাস", "বৃষ্টি"]}},
+        {"user": "আগে যে ফুলটার কথা বললে, সেটা কোথায় ফোটে?", "memory": true, "refers_to": "শাপলা",
+         "expect": {"any": ["শাপলা", "পুকুর", "জল", "বিল", "হাওর", "পানি"]}}
+      ]
+    }
+  ]
+}

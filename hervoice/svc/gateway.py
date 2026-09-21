@@ -25,6 +25,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from hervoice.svc import config as C           # noqa: E402
 from hervoice.svc import protocol as P         # noqa: E402
+from hervoice.svc.conversation import Conversation  # noqa: E402
 from hervoice.svc.engine import ServiceEngine  # noqa: E402
 from hervoice.svc.turnloop import TurnLoop     # noqa: E402
 
@@ -43,7 +44,7 @@ def _make_detector():
     corrupt the very first transcript of a session. Warming costs milliseconds once.
     """
     from hervoice.live.turn_detector import TurnDetector
-    d = TurnDetector()
+    d = TurnDetector(min_silence_ms=C.MIN_SILENCE_MS, min_speech_ms=C.MIN_SPEECH_MS)
     silence = np.zeros(512, dtype=np.float32)
     for _ in range(4):
         d.process(silence)
@@ -128,8 +129,10 @@ def build_app():
                 log.warning("client too slow; dropping outbound frame")
 
         engine = ServiceEngine()
+        conv = Conversation(system=C.SYSTEM_PROMPT, max_turns=C.MEM_MAX_TURNS,
+                            max_chars=C.MEM_MAX_CHARS)
         tl = TurnLoop(engine, _make_detector(), on_event=emit, on_audio=send_audio,
-                      sr=C.SR_IN, max_queue=C.MAX_INBOUND_FRAMES,
+                      conversation=conv, sr=C.SR_IN, max_queue=C.MAX_INBOUND_FRAMES,
                       max_turn_s=C.MAX_TURN_SECONDS)
 
         th = threading.Thread(target=tl.run, daemon=True)
@@ -165,6 +168,9 @@ def build_app():
                         continue
                     if d.get("type") == "played":
                         tl.note_played(int(d.get("epoch", 0)), int(d.get("seq", 0)))
+                    elif d.get("type") == "reset":
+                        conv.reset()
+                        emit({"type": "memory", "turns_kept": 0, "reset": True})
                     elif d.get("type") == "stop":
                         break
         except WebSocketDisconnect:

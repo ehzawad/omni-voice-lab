@@ -34,12 +34,12 @@ def transcribe(audio16k):
     return json.load(r)
 
 
-def brain_stream(user_text, cancel=None):
+def brain_stream(user_text, cancel=None, history=None):
     """Yield text deltas from vLLM's OpenAI-compatible SSE stream."""
     body = json.dumps({
         "model": C.LLM_MODEL,
-        "messages": [{"role": "system", "content": C.SYSTEM_PROMPT},
-                     {"role": "user", "content": user_text}],
+        "messages": [{"role": "system", "content": C.SYSTEM_PROMPT}] + (history or [])
+                    + [{"role": "user", "content": user_text}],
         "max_tokens": C.LLM_MAX_TOKENS, "temperature": C.LLM_TEMPERATURE, "stream": True,
     }).encode()
     r = _post(f"{C.LLM_URL}/v1/chat/completions", body,

@@ -74,6 +74,11 @@ TTS_SPEED = _f("HV_TTS_SPEED", 1.0)
 TTS_MAX_BYTES = _i("HV_TTS_MAX_BYTES", 400)
 
 LLM_MAX_TOKENS = _i("HV_LLM_MAX_TOKENS", 160)
+
+# Conversation memory (text only -- see conversation.py). Six exchanges and ~2400 chars keep
+# well inside Gemma's 2048-token window even at 1 token per 2 Bengali characters.
+MEM_MAX_TURNS = _i("HV_MEM_MAX_TURNS", 12)
+MEM_MAX_CHARS = _i("HV_MEM_MAX_CHARS", 2400)
 LLM_TEMPERATURE = _f("HV_LLM_TEMPERATURE", 0.0)
 
 SYSTEM_PROMPT = _s(
@@ -81,6 +86,17 @@ SYSTEM_PROMPT = _s(
     "তুমি একজন সহায়ক বাংলা কণ্ঠ-সহকারী। সবসময় বাংলায় উত্তর দাও। "
     "উত্তর সংক্ষিপ্ত রাখো — দুই থেকে তিনটি ছোট বাক্য।",
 )
+
+# ------------------------------------------------------------------------ turn taking
+# End-of-turn silence. Measured on 30 real spontaneous Bengali clips (IndicVoices-R extempore):
+# clips cut off mid-sentence / median added latency -- 220 ms: 15/30 / 242 ms; 350: 9 / 368;
+# 500: 6 / 528; 600: 3 / 624; 700: 1 / 722; 800: 1 / 817; 1000: 0 / 1042. Silero's default 220
+# fired at natural mid-sentence pauses and truncated 7.8 s of speech to one word. 600 is the
+# knee: an 80 % cut in interruptions for +380 ms. A semantic end-of-turn model (Smart Turn v3,
+# published Bengali 83.8 %) was measured on the same clips and did NOT help: 15 -> 13 cut off,
+# 5/30 real ends missed, 101 ms per decision. Plain silence wins here.
+MIN_SILENCE_MS = _i("HV_MIN_SILENCE_MS", 600)
+MIN_SPEECH_MS = _i("HV_MIN_SPEECH_MS", 120)
 
 # ------------------------------------------------------------------------------- audio
 SR_IN = 16000      # everything upstream of the brain
@@ -106,4 +122,5 @@ def summary():
         "asr_model": ASR_MODEL, "tts_repo": TTS_REPO, "device": DEVICE,
         "tts_nfe": TTS_NFE, "sr_in": SR_IN, "sr_out": SR_OUT,
         "max_sessions": MAX_SESSIONS, "auth": bool(GW_TOKEN),
+        "min_silence_ms": MIN_SILENCE_MS, "mem_turns": MEM_MAX_TURNS,
     }

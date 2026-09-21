@@ -1,0 +1,150 @@
+# HerVoice-BN on ONE dedicated GPU VM (24 GB card), Docker Compose.
+#
+# Three images, not four: the processes fall into three dependency sets.
+#   llm      vllm/vllm-openai:v0.29.0 upstream, unchanged (torch 2.13 + CUDA 13.0)
+#   bn-gpu   one image, entrypoint switch asr|tts (torch 2.8 + CUDA 12.8, NeMo, pinned F5-TTS)
+#   gateway  CPU only (FastAPI, Silero, onnxruntime) -- no CUDA, small, scales separately
+#
+# Both CUDA stacks share ONE host driver: anything >= 580.65.06 serves cu128 and cu130. The
+# NVIDIA Container Toolkit mounts the host driver into each container; the images ship only
+# their own CUDA runtime (already inside the pip wheels).
+#
+# Startup ORDER matters far less than it did: vLLM is given an absolute --kv-cache-memory, so
+# its footprint no longer depends on what else is resident while it profiles. depends_on with
+# healthchecks is kept for tidiness and for the gateway's /ready; on Kubernetes (no ordered
+# startup) the stack still works because of that flag.
+#
+# Only Caddy is exposed to the host. Ports 8001/8002/8090/8100 stay on the compose network.
+# getUserMedia is UNDEFINED on plain http off localhost -- there is no "just open a port" path
+# to a working microphone. Caddy obtains a Let's Encrypt cert for $HV_DOMAIN and proxies the
+# WebSocket upgrade with no extra config.
+#
+#   cp deploy/.env.example deploy/.env   # set HV_DOMAIN, HV_GW_TOKEN, HF_TOKEN
+#   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
+#   docker compose -f deploy/compose.yaml logs -f gateway
+
+name: hervoice-bn
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]      # mandatory; omitting it errors at deploy
+
+x-hf: &hf
+  environment: &hf-env
+    HF_HOME: /hf
+    HF_HUB_DISABLE_PROGRESS_BARS: "1"
+    HF_TOKEN: ${HF_TOKEN:-}
+  volumes:
+    - hf-cache:/hf                  # ~13 GB of weights: never baked into an image, never re-downloaded
+
+services:
+
+  llm:
+    <<: *gpu
+    image: vllm/vllm-openai:v0.29.0
+    command: >
+      --model ${HV_LLM_MODEL_ID:-google/gemma-4-E4B-it-qat-w4a16-ct}
+      --served-model-name ${HV_LLM_MODEL:-gemma4-e4b}
+      --host 0.0.0.0 --port 8090
+      --kv-cache-memory ${HV_LLM_KV_CACHE_BYTES:-2641641472}
+      --max-model-len ${HV_LLM_MAX_MODEL_LEN:-2048}
+      --no-enable-log-requests
+    environment:
+      <<: *hf-env
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    ipc: host                        # vLLM uses shared memory between its processes
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8090/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 60                    # engine init measured 282 s cold (102 s of torch.compile)
+      start_period: 120s
+    restart: unless-stopped
+
+  asr:
+    <<: [*gpu, *hf]
+    image: hervoice-bn-gpu:latest
+    build: { context: .., dockerfile: deploy/Dockerfile.bn-gpu }
+    command: asr
+    environment:
+      <<: *hf-env
+      HV_ASR_HOST: 0.0.0.0
+      HV_ASR_PORT: "8001"
+      HV_ASR_MODEL: ${HV_ASR_MODEL:-ehzawad/stt_bn_fastconformer_ctc}
+    depends_on:
+      llm: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8001/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+    restart: unless-stopped
+
+  tts:
+    <<: [*gpu, *hf]
+    image: hervoice-bn-gpu:latest
+    command: tts
+    environment:
+      <<: *hf-env
+      HV_TTS_HOST: 0.0.0.0
+      HV_TTS_PORT: "8002"
+      HV_TTS_REPO: ${HV_TTS_REPO:-ehzawad/indicf5-bangla-tts}
+      HV_TTS_NFE: ${HV_TTS_NFE:-16}
+    depends_on:
+      asr: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8002/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+    restart: unless-stopped
+
+  gateway:
+    image: hervoice-gateway:latest
+    build: { context: .., dockerfile: deploy/Dockerfile.gateway }
+    environment:
+      HV_GW_HOST: 0.0.0.0             # compose network only; Caddy is the only thing on the host
+      HV_GW_PORT: "8100"
+      HV_GW_TOKEN: ${HV_GW_TOKEN:?set HV_GW_TOKEN in deploy/.env}
+      HV_ASR_URL: http://asr:8001
+      HV_TTS_URL: http://tts:8002
+      HV_LLM_URL: http://llm:8090
+      HV_LLM_MODEL: ${HV_LLM_MODEL:-gemma4-e4b}
+      HV_MIN_SILENCE_MS: ${HV_MIN_SILENCE_MS:-600}
+      HV_MAX_SESSIONS: ${HV_MAX_SESSIONS:-1}   # one 24 GB card ~ 3-4 sessions; TTS is the wall
+    depends_on:
+      tts: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      HV_DOMAIN: ${HV_DOMAIN:?set HV_DOMAIN (a DNS A record pointing at this VM)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      gateway: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
+  caddy-data:
+  caddy-config:

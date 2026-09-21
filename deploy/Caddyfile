@@ -1,0 +1,9 @@
+# TLS + WebSocket in two lines. Caddy fetches a Let's Encrypt certificate for HV_DOMAIN the
+# first time the A record resolves here, renews it forever, and proxies the WebSocket Upgrade
+# with no extra configuration. This is what makes getUserMedia work at all off localhost.
+#
+# No load balancer on purpose: GCP's ALB closes idle WebSockets at its 30 s backend timeout,
+# AWS's ALB at 60 s idle plus a 3600 s hard lifetime. Caddy has neither surprise.
+{$HV_DOMAIN} {
+    reverse_proxy gateway:8100
+}

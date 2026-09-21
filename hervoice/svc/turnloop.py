@@ -56,9 +56,10 @@ class TurnLoop:
     on_audio(pcm24k) is called once per synthesised chunk and must not block for long.
     """
 
-    def __init__(self, engine, detector, on_event, on_audio, sr=16000,
+    def __init__(self, engine, detector, on_event, on_audio, conversation, sr=16000,
                  max_queue=200, max_turn_s=30.0, barge_guard_ms=350):
         self.engine = engine
+        self.conv = conversation
         self.detector = detector
         self.on_event = on_event
         self.on_audio = on_audio
@@ -242,7 +243,18 @@ class TurnLoop:
                 self._audio_sent_s += len(pcm) / 24000.0
                 self.on_audio(epoch, pcm)
 
-            self.engine.respond(asr["text"], self.cancel, on_delta, on_sentence, on_audio)
+            # Memory is TEXT: the transcript in, the reply out. See conversation.py for why.
+            messages = self.conv.messages(pending_user=asr["text"])
+            generated, spoken = self.engine.respond(
+                messages, self.cancel, on_delta, on_sentence, on_audio)
+            self.conv.add_user(asr["text"], turn=self.turn, asr_ms=asr.get("ms"))
+            if spoken:
+                # remember what was HEARD, not what was generated
+                self.conv.add_assistant(spoken, turn=self.turn,
+                                        cancelled=self.cancel.is_set(),
+                                        truncated=(spoken.strip() != generated.strip()))
+            self._emit("memory", turn=self.turn, turns_kept=len(self.conv),
+                       cancelled=self.cancel.is_set())
         except Exception as e:                          # noqa: BLE001
             log.exception("generation failed")
             self._emit("error", message=f"generation failed: {e!r}")

@@ -118,9 +118,9 @@ def build_app():
         def emit(ev):            # called from the loop thread
             loop.call_soon_threadsafe(_put, ("json", ev))
 
-        def send_audio(epoch, pcm):
+        def send_audio(epoch, seq, pcm):
             loop.call_soon_threadsafe(
-                _put, ("bin", (epoch, np.ascontiguousarray(pcm, dtype="<f4").tobytes())))
+                _put, ("bin", (epoch, seq, np.ascontiguousarray(pcm, dtype="<f4").tobytes())))
 
         def _put(item):
             try:
@@ -133,13 +133,11 @@ def build_app():
                             max_chars=C.MEM_MAX_CHARS)
         tl = TurnLoop(engine, _make_detector(), on_event=emit, on_audio=send_audio,
                       conversation=conv, sr=C.SR_IN, max_queue=C.MAX_INBOUND_FRAMES,
-                      max_turn_s=C.MAX_TURN_SECONDS)
+                      max_turn_s=C.MAX_TURN_SECONDS, min_silence_ms=C.MIN_SILENCE_MS)
 
         th = threading.Thread(target=tl.run, daemon=True)
         th.start()
         await sock.send_text(json.dumps({"type": "ready", "config": C.summary()}))
-
-        seqs = {}
 
         async def pump():
             while True:
@@ -147,9 +145,7 @@ def build_app():
                 if kind == "json":
                     await sock.send_text(json.dumps(payload, ensure_ascii=False))
                 else:
-                    epoch, pcm = payload
-                    seq = seqs.get(epoch, 0)
-                    seqs[epoch] = seq + 1
+                    epoch, seq, pcm = payload      # seq assigned by the turn loop's ledger
                     await sock.send_bytes(P.pack_audio(epoch, seq, C.SR_OUT, pcm))
 
         pump_task = asyncio.create_task(pump())
@@ -168,6 +164,8 @@ def build_app():
                         continue
                     if d.get("type") == "played":
                         tl.note_played(int(d.get("epoch", 0)), int(d.get("seq", 0)))
+                    elif d.get("type") == "flushed":
+                        tl.note_flushed(int(d.get("epoch", 0)))
                     elif d.get("type") == "reset":
                         conv.reset()
                         emit({"type": "memory", "turns_kept": 0, "reset": True})

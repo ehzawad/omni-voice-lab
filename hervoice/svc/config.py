@@ -94,8 +94,10 @@ SYSTEM_PROMPT = _s(
 # fired at natural mid-sentence pauses and truncated 7.8 s of speech to one word. 600 is the
 # knee: an 80 % cut in interruptions for +380 ms. A semantic end-of-turn model (Smart Turn v3,
 # published Bengali 83.8 %) was measured on the same clips and did NOT help: 15 -> 13 cut off,
-# 5/30 real ends missed, 101 ms per decision. Plain silence wins here.
-MIN_SILENCE_MS = _i("HV_MIN_SILENCE_MS", 600)
+# 5/30 real ends missed, 101 ms per decision. Plain silence wins here. 700 over 600: another
+# 98 ms took cut-off clips from 3 to 1; a cut-off destroys the referent AND turns the
+# continuation into a barge-in, so the exchange is worth it. Unproven for short questions.
+MIN_SILENCE_MS = _i("HV_MIN_SILENCE_MS", 700)
 MIN_SPEECH_MS = _i("HV_MIN_SPEECH_MS", 120)
 
 # ------------------------------------------------------------------------------- audio

@@ -32,6 +32,11 @@ What is different here:
   * PREROLL. A rolling pre-speech buffer is prepended to every turn so the onset survives.
   * BOUNDED admission. The frame queue has a limit and drops oldest-first under overload
     rather than turning live speech into delayed speech.
+  * PLAYBACK LEDGER. Memory commits only text whose audio the client ACKNOWLEDGED playing.
+    "Emitted" is not "heard": the browser can hold several chunks and discard them on a
+    cancel. Every chunk carries (epoch, seq); the client acks each completed chunk; a
+    sentence is remembered only when every chunk of it is acked. Anything else is recorded
+    as an explicit interruption marker, never as speech the assistant supposedly said.
 """
 import collections
 import logging
@@ -57,9 +62,11 @@ class TurnLoop:
     """
 
     def __init__(self, engine, detector, on_event, on_audio, conversation, sr=16000,
-                 max_queue=200, max_turn_s=30.0, barge_guard_ms=350):
+                 max_queue=200, max_turn_s=30.0, barge_guard_ms=350, min_silence_ms=700):
+        """on_audio(epoch, seq, pcm24k): seq is assigned HERE so the ledger and the wire agree."""
         self.engine = engine
         self.conv = conversation
+        self.min_silence_ms = min_silence_ms
         self.detector = detector
         self.on_event = on_event
         self.on_audio = on_audio
@@ -86,6 +93,11 @@ class TurnLoop:
         self._gen_done = threading.Event()
         self._speak_started = None
         self._audio_sent_s = 0.0
+        self._speech_end_t = None          # when the user actually stopped (endpoint - silence wait)
+
+        # ledger: epoch -> {"sents": {idx: {"text","seqs":set,"acked":set,"emitted":bool}},
+        #                   "next_seq": int, "gen_done": bool, "committed": bool}
+        self._ledger = {}
 
     # ------------------------------------------------------------------ public
     def submit_frame(self, frame16k):
@@ -113,6 +125,19 @@ class TurnLoop:
         except (queue.Empty, queue.Full):
             self._dropped += 1
 
+    def note_played(self, epoch, seq):
+        """Client acknowledged one chunk. Handled on the loop thread, never here."""
+        try:
+            self.q.put_nowait(("played", (int(epoch), int(seq))))
+        except queue.Full:
+            pass
+
+    def note_flushed(self, epoch):
+        try:
+            self.q.put_nowait(("flushed", int(epoch)))
+        except queue.Full:
+            pass
+
     def stop(self):
         try:
             self.q.put_nowait(("stop", None))
@@ -130,6 +155,10 @@ class TurnLoop:
                     self._cancel_generation("client")
                 self._emit("stopped")
                 return
+            if kind == "played":
+                self._on_played(*payload); continue
+            if kind == "flushed":
+                continue
             try:
                 self._on_frame(payload)
             except Exception as e:                      # noqa: BLE001
@@ -168,6 +197,8 @@ class TurnLoop:
                     self._barge_in()
         elif ev.kind == VadEvent.SPEECH_END:
             if self.state == USER_SPEAKING:
+                # the detector fires after min_silence of quiet: the user stopped that long ago
+                self._speech_end_t = time.time() - self.min_silence_ms / 1000.0
                 self._end_user_speech()
 
     # ------------------------------------------------------------------ turn
@@ -205,12 +236,15 @@ class TurnLoop:
         self._speak_started = None
         self.detector.reset()
         epoch = self.epoch
+        self._ledger[epoch] = {"sents": {}, "next_seq": 0, "gen_done": False, "committed": False,
+                               "user_text": None}
         self._gen_thread = threading.Thread(
             target=self._gen_worker, args=(audio, epoch), daemon=True)
         self._gen_thread.start()
 
     def _gen_worker(self, audio, epoch):
         t0 = time.time()
+        led = self._ledger[epoch]
         try:
             asr = self.engine.transcribe(audio)
             self._emit("asr", turn=self.turn, text=asr.get("text", ""), ms=asr.get("ms", 0),
@@ -221,45 +255,106 @@ class TurnLoop:
                            "utterance; the transcript may be wrong")
             if not asr.get("text"):
                 return
+            led["user_text"] = asr["text"]
             first = {"t": None}
 
             def on_delta(d):
                 self._emit("text", turn=self.turn, delta=d)
 
-            def on_sentence(s):
-                self._emit("sentence", turn=self.turn, text=s)
+            def on_sentence(idx, text):
+                led["sents"][idx] = {"text": text, "seqs": set(), "acked": set(), "emitted": False}
+                self._emit("sentence", turn=self.turn, idx=idx, text=text)
 
-            def on_audio(pcm):
+            def on_audio(pcm, idx):
                 if self.cancel.is_set() or epoch != self.epoch:
                     return
+                seq = led["next_seq"]; led["next_seq"] += 1
+                sent = led["sents"].setdefault(idx, {"text": "", "seqs": set(), "acked": set(), "emitted": False})
+                sent["seqs"].add(seq)
                 if first["t"] is None:
                     first["t"] = time.time()
-                    self._emit("metrics", turn=self.turn,
-                               first_audio_ms=round((first["t"] - t0) * 1000, 1))
+                    m = dict(turn=self.turn, first_audio_ms=round((first["t"] - t0) * 1000, 1))
+                    if self._speech_end_t:
+                        # the honest number: from when the user STOPPED, including the silence wait
+                        m["first_audio_from_speech_end_ms"] = round((first["t"] - self._speech_end_t) * 1000, 1)
+                    self._emit("metrics", **m)
                     if self._speak_started is None:
                         self._speak_started = time.time()
                         self.state = SPEAKING
                         self._emit("state", state=self.state)
                 self._audio_sent_s += len(pcm) / 24000.0
-                self.on_audio(epoch, pcm)
+                self.on_audio(epoch, seq, pcm)
 
             # Memory is TEXT: the transcript in, the reply out. See conversation.py for why.
             messages = self.conv.messages(pending_user=asr["text"])
-            generated, spoken = self.engine.respond(
+            generated, emitted = self.engine.respond(
                 messages, self.cancel, on_delta, on_sentence, on_audio)
-            self.conv.add_user(asr["text"], turn=self.turn, asr_ms=asr.get("ms"))
-            if spoken:
-                # remember what was HEARD, not what was generated
-                self.conv.add_assistant(spoken, turn=self.turn,
-                                        cancelled=self.cancel.is_set(),
-                                        truncated=(spoken.strip() != generated.strip()))
-            self._emit("memory", turn=self.turn, turns_kept=len(self.conv),
-                       cancelled=self.cancel.is_set())
+            # mark sentences whose synthesis finished (all their chunks were emitted)
+            for idx, sent in led["sents"].items():
+                if sent["seqs"] and sent["text"] and sent["text"] in emitted:
+                    sent["emitted"] = True
+            led["generated"] = generated
         except Exception as e:                          # noqa: BLE001
             log.exception("generation failed")
             self._emit("error", message=f"generation failed: {e!r}")
         finally:
+            led["gen_done"] = True
             self._gen_done.set()
+
+    # ------------------------------------------------------------------ ledger
+    def _on_played(self, epoch, seq):
+        led = self._ledger.get(epoch)
+        if not led:
+            return
+        for sent in led["sents"].values():
+            if seq in sent["seqs"]:
+                sent["acked"].add(seq)
+        # authoritative natural end: generation finished AND its last chunk was heard
+        if (epoch == self.epoch and self.state == SPEAKING and led["gen_done"]
+                and self._all_acked(led)):
+            self._end_turn(cancelled=False)
+
+    @staticmethod
+    def _all_acked(led):
+        return all(s["acked"] >= s["seqs"] for s in led["sents"].values() if s["seqs"])
+
+    def _commit_memory(self, epoch, cancelled, reason):
+        """Commit to conversation memory ONLY sentences whose every chunk was acknowledged.
+        Called once per epoch, from _end_turn or from a cancel. Idempotent."""
+        led = self._ledger.get(epoch)
+        if not led or led["committed"]:
+            return
+        led["committed"] = True
+        if led.get("user_text"):
+            self.conv.add_user(led["user_text"], turn=self.turn)
+        ordered = [led["sents"][i] for i in sorted(led["sents"])]
+        confirmed, partial = [], False
+        for sent in ordered:
+            if sent["seqs"] and sent["emitted"] and sent["acked"] >= sent["seqs"]:
+                confirmed.append(sent["text"])
+            elif sent["seqs"]:
+                partial = True      # started playing (or was sent) but not fully acknowledged
+        text = " ".join(confirmed).strip()
+        # The marker is for the BRAIN, so it knows its previous answer was not fully delivered.
+        # It is history annotation, never text to synthesise (it is never sent to TTS).
+        if cancelled and partial:
+            marker = "[উত্তরটি মাঝপথে বাধাপ্রাপ্ত হয়েছিল; শেষাংশ শোনা যায়নি।]"
+        elif cancelled and not confirmed:
+            marker = "[উত্তর শোনানোর আগেই ব্যবহারকারী কথা বলা শুরু করেন; কোনো উত্তর শোনানো হয়নি।]"
+        elif partial:
+            marker = "[শেষাংশের প্লেব্যাক নিশ্চিত হয়নি।]"
+        else:
+            marker = ""
+        if text or marker:
+            self.conv.add_assistant((text + " " + marker).strip(), turn=self.turn,
+                                    cancelled=cancelled, truncated=bool(marker),
+                                    confirmed_sentences=len(confirmed), total_sentences=len(ordered))
+        self._emit("memory", turn=self.turn, epoch=epoch, reason=reason, cancelled=cancelled,
+                   confirmed_sentences=len(confirmed), total_sentences=len(ordered),
+                   marker=bool(marker), turns_kept=len(self.conv))
+        # drop very old ledgers; late acks for the current and previous epoch still land
+        for old in [e for e in self._ledger if e < epoch - 2]:
+            self._ledger.pop(old, None)
 
     def _finish_generation(self):
         """The brain and TTS are done. The LISTENER is not: audio is still in flight."""
@@ -279,12 +374,8 @@ class TurnLoop:
             return True
         return (time.time() - self._speak_started) > (self._audio_sent_s + 0.35)
 
-    def note_played(self, epoch, seq):
-        """Client acknowledged playback. Authoritative end-of-speaking for the current turn."""
-        if epoch == self.epoch and self.state == SPEAKING and self._gen_done.is_set():
-            self._end_turn(cancelled=False)
-
     def _end_turn(self, cancelled):
+        self._commit_memory(self.epoch, cancelled, "turn_end" if not cancelled else "cancel")
         self._emit("turn_end", turn=self.turn, epoch=self.epoch, cancelled=cancelled)
         self.state = IDLE
         self._speak_started = None
@@ -311,6 +402,10 @@ class TurnLoop:
         self.epoch += 1                       # everything stamped `old` is now void
         self._emit("cancel", epoch=old, reason=reason)
         self._join(timeout=10.0)
+        # commit what was CONFIRMED heard before the cancel; anything else becomes a marker.
+        # Acks for chunks that finished playing arrive within milliseconds of completion, so
+        # by the time the worker has joined the ledger is current to within one in-flight ack.
+        self._commit_memory(old, cancelled=True, reason=reason)
         self._audio_sent_s = 0.0
         self._speak_started = None
 

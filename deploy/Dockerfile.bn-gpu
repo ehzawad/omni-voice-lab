@@ -30,6 +30,8 @@ RUN uv venv --python 3.12 /venv \
     && uv pip install --python /venv/bin/python -e /opt/F5-TTS
 
 COPY hervoice/ ./hervoice/
+# The repo's hervoice/__init__.py eagerly imports core -> ft/bn_tts.py; ft/ is not in this image.
+RUN printf '' > hervoice/__init__.py
 
 # Weights live in a volume at /hf, never in the image (~13 GB across the three models).
 VOLUME ["/hf"]

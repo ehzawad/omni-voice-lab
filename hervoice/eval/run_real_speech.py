@@ -33,7 +33,8 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from hervoice.svc import config as C                       # noqa: E402
+from hervoice.svc import config as C
+from hervoice.svc import protocol as P                       # noqa: E402
 from hervoice.eval.run_scenarios import _cer, script_ok    # noqa: E402
 
 PARQ = "/mnt/sdb/arafat/.cache/huggingface/hub/datasets--ai4bharat--indicvoices_r/snapshots/*/Bengali/*.parquet"
@@ -82,16 +83,24 @@ async def run(clips, token, out_dir):
     results = []
     async with websockets.connect(f"ws://127.0.0.1:{C.GW_PORT}/ws", max_size=None) as ws:
         await ws.send(json.dumps({"type": "hello", "token": token, "sample_rate": C.SR_IN}))
-        st = {"asr": None, "reply": "", "first": None, "ended": 0, "err": []}
+        st = {"ended": 0, "err": [], "turns": {}}   # turns keyed by server turn number
 
         async def reader():
             async for m in ws:
+                if isinstance(m, (bytes, bytearray)):
+                    _, ep, sq, _ = P.unpack_header(m)
+                    await ws.send(json.dumps({"type": "played", "epoch": ep, "seq": sq}))   # instant playback
+                    continue
                 if isinstance(m, str):
-                    d = json.loads(m); t = d.get("type")
-                    if t == "asr": st["asr"] = d.get("text", "")
-                    elif t == "text": st["reply"] += d.get("delta", "")
-                    elif t == "metrics" and d.get("first_audio_ms"): st["first"] = d["first_audio_ms"]
-                    elif t == "turn_end": st["ended"] += 1
+                    d = json.loads(m); t = d.get("type"); tn = d.get("turn")
+                    if tn is not None:
+                        rec = st["turns"].setdefault(tn, {"asr": "", "reply": "", "first": None, "first_se": None, "ended": False})
+                    if t == "asr": rec["asr"] = d.get("text", "")
+                    elif t == "text": rec["reply"] += d.get("delta", "")
+                    elif t == "metrics":
+                        if d.get("first_audio_ms"): rec["first"] = d["first_audio_ms"]
+                        if d.get("first_audio_from_speech_end_ms"): rec["first_se"] = d["first_audio_from_speech_end_ms"]
+                    elif t == "turn_end": rec["ended"] = True; st["ended"] += 1
                     elif t == "error": st["err"].append(d.get("message"))
         rt = asyncio.create_task(reader())
         await asyncio.sleep(0.3)
@@ -102,7 +111,7 @@ async def run(clips, token, out_dir):
                 await ws.send(z); await asyncio.sleep(0.02)
 
         for k, c in enumerate(clips):
-            st.update(asr=None, reply="", first=None, err=[])
+            st["err"] = []; before = set(k for k, v in st["turns"].items() if v["ended"])
             want = st["ended"] + 1
             await ws.send(json.dumps({"type": "reset"}))      # each clip is its own conversation
             await silence(0.4)
@@ -113,18 +122,24 @@ async def run(clips, token, out_dir):
             while st["ended"] < want and time.time() < deadline:
                 await silence(0.2)
             timed_out = st["ended"] < want
-            asr = st["asr"] or ""
-            reply = st["reply"].strip()
-            cer = _cer(c["text"], asr)
+            # every server turn this ONE clip produced; >1 means a premature endpoint split it
+            new = sorted(k for k, v in st["turns"].items() if v["ended"] and k not in before)
+            parts = [st["turns"][k] for k in new]
+            asr_all = " | ".join(p_["asr"] for p_ in parts)                 # everything heard, in order
+            asr_joined = " ".join(p_["asr"] for p_ in parts)                # for CER against the reference
+            reply = (parts[-1]["reply"] if parts else "").strip()           # the reply to the LAST part
+            cer = _cer(c["text"], asr_joined)
             ok, frac = script_ok(reply) if reply else (False, 0.0)
             rec = dict(idx=k, snr=c["snr"], snr_bucket=c["snr_bucket"], gender=c["gender"], age=c["age"],
-                       area=c["area"], dur=c["dur"], ref=c["text"], asr=asr, cer=round(cer, 3),
-                       reply=reply, reply_ok=bool(reply) and ok, bn_frac=frac,
-                       first_audio_ms=st["first"], timed_out=timed_out, errors=st["err"])
+                       area=c["area"], dur=c["dur"], ref=c["text"], asr=asr_all, cer=round(cer, 3),
+                       split_into_turns=len(parts), reply=reply, reply_ok=bool(reply) and ok, bn_frac=frac,
+                       first_audio_ms=parts[0]["first"] if parts else None,
+                       first_audio_from_speech_end_ms=parts[0]["first_se"] if parts else None,
+                       timed_out=timed_out, errors=st["err"])
             results.append(rec)
             print(f"  [{k:2d}] snr={c['snr']:5.1f} {c['snr_bucket']:4s} {c['gender'][:1]} {c['area'][:1]} "
                   f"{c['dur']:4.1f}s cer={cer:.2f} reply={'ok ' if rec['reply_ok'] else 'BAD'} "
-                  f"first={st['first'] or 0:5.0f}ms | {asr[:40]}", flush=True)
+                  f"first={rec['first_audio_ms'] or 0:5.0f}ms{' SPLIT x'+str(len(parts)) if len(parts)>1 else ''} | {asr_all[:40]}", flush=True)
             await silence(0.6)
         await ws.send(json.dumps({"type": "stop"})); await asyncio.sleep(0.3); rt.cancel()
     return results
@@ -140,10 +155,13 @@ def summarize(res, thresholds):
               f"| valid Bengali reply {sum(r['reply_ok'] for r in rs)}/{len(rs)}")
     cers = [r["cer"] for r in res]
     fa = [r["first_audio_ms"] for r in res if r["first_audio_ms"]]
+    fse = [r["first_audio_from_speech_end_ms"] for r in res if r.get("first_audio_from_speech_end_ms")]
+    print(f"  utterances split into >1 turn by a premature endpoint: {sum(1 for r in res if r.get('split_into_turns',1)>1)}/{len(res)}")
+    if fse: print(f"  first audio from SPEECH END (includes the silence wait): median {np.median(fse):.0f} ms, p90 {np.percentile(fse,90):.0f} ms  <- the honest number")
     print(f"  ALL: CER mean {np.mean(cers):.3f} median {np.median(cers):.3f} p90 {np.percentile(cers,90):.3f} "
           f"| valid reply {sum(r['reply_ok'] for r in res)}/{len(res)} | timeouts {sum(r['timed_out'] for r in res)}")
     if fa:
-        print(f"  first audio on real utterances: median {np.median(fa):.0f} ms, p90 {np.percentile(fa,90):.0f} ms")
+        print(f"  first audio from ENDPOINT on real utterances: median {np.median(fa):.0f} ms, p90 {np.percentile(fa,90):.0f} ms")
     bad = [r for r in res if not r["reply_ok"]]
     for r in bad[:5]:
         print(f"    BAD reply example: heard={r['asr'][:40]!r} reply={r['reply'][:60]!r}")

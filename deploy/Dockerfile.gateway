@@ -12,13 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 WORKDIR /app
 # CPU torch only for Silero's tiny model; the +cpu wheel keeps the image well under 1 GB.
-RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 \
+# silero-vad imports torchaudio; install BOTH CPU wheels explicitly or pip pulls a CUDA torchaudio.
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchaudio==2.8.0 \
     && pip install fastapi "uvicorn[standard]" websockets numpy silero-vad onnxruntime soundfile
 
 COPY hervoice/svc/ ./hervoice/svc/
 COPY hervoice/live/turn_detector.py ./hervoice/live/turn_detector.py
 COPY hervoice/live/__init__.py ./hervoice/live/__init__.py
-RUN touch hervoice/__init__.py
+# Empty package initialisers: the repo's hervoice/__init__.py eagerly imports legacy modules
+# (core -> ft/bn_tts) that this image deliberately does not carry.
+RUN printf '' > hervoice/__init__.py && printf '' > hervoice/live/__init__.py
 
 # Silero downloads its weights on first use; bake them so a cold container has no network dependency.
 RUN python -c "from silero_vad import load_silero_vad; load_silero_vad()"

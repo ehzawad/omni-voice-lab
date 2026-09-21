@@ -98,24 +98,28 @@ registerProcessor('cap', Cap);`;
 // still be holding seconds of speech.
 const PLAY_WORKLET = `
 class Play extends AudioWorkletProcessor {
-  constructor(){ super(); this.q=[]; this.epoch=0; this.played=0; this.lastAck=0;
+  constructor(){ super(); this.q=[]; this.epoch=0;
     this.port.onmessage = e => {
       const m = e.data;
-      if (m.cmd === 'push') { if (m.epoch === this.epoch) this.q.push(m.pcm); }
+      if (m.cmd === 'push') { if (m.epoch === this.epoch) this.q.push({epoch:m.epoch, seq:m.seq, pcm:m.pcm, off:0}); }
       else if (m.cmd === 'epoch') { this.epoch = m.epoch; }
-      else if (m.cmd === 'flush') { this.q.length = 0; }
+      else if (m.cmd === 'flush') {
+        // report what was dropped so the server never mistakes a flush for playback
+        const dropped = this.q.map(c => c.seq); this.q.length = 0;
+        this.port.postMessage({flushed:true, epoch:this.epoch, dropped});
+      }
     }; }
   process(_, outputs){
     const out = outputs[0][0]; let o = 0;
     while (o < out.length && this.q.length) {
-      const head = this.q[0]; const take = Math.min(head.length, out.length-o);
-      out.set(head.subarray(0,take), o); o += take;
-      if (take === head.length) this.q.shift(); else this.q[0] = head.subarray(take);
-      this.played += take; }
+      const c = this.q[0]; const take = Math.min(c.pcm.length - c.off, out.length - o);
+      out.set(c.pcm.subarray(c.off, c.off + take), o); o += take; c.off += take;
+      if (c.off >= c.pcm.length) {
+        this.q.shift();
+        // this chunk has now been RENDERED to the output device: acknowledge it by seq
+        this.port.postMessage({played:true, epoch:c.epoch, seq:c.seq});
+      } }
     while (o < out.length) out[o++] = 0;
-    if (this.q.length === 0 && this.played > this.lastAck) {
-      this.lastAck = this.played;
-      this.port.postMessage({drained:true, epoch:this.epoch}); }
     return true; } }
 registerProcessor('play', Play);`;
 
@@ -177,8 +181,9 @@ $("start").onclick = async () => {
     playNode = new AudioWorkletNode(playCtx, 'play');
     playNode.connect(playCtx.destination);
     playNode.port.onmessage = e => {
-      if (e.data.drained && ws && ws.readyState === 1)
-        ws.send(JSON.stringify({type:"played", epoch:e.data.epoch, seq:0}));
+      if (!ws || ws.readyState !== 1) return;
+      if (e.data.played)  ws.send(JSON.stringify({type:"played",  epoch:e.data.epoch, seq:e.data.seq}));
+      if (e.data.flushed) ws.send(JSON.stringify({type:"flushed", epoch:e.data.epoch, dropped:e.data.dropped}));
     };
 
     $("stop").disabled = false;
@@ -232,9 +237,10 @@ function onMessage(ev){
   const dv = new DataView(ev.data);
   if (dv.getUint16(0, false) !== MAGIC) return;
   const epoch = dv.getUint32(4, true);
+  const seq   = dv.getUint32(8, true);
   if (epoch !== currentEpoch) return;                    // stale: drop, do not play
   const pcm = new Float32Array(ev.data, HDR);
-  playNode.port.postMessage({cmd:'push', epoch, pcm}, [pcm.buffer]);
+  playNode.port.postMessage({cmd:'push', epoch, seq, pcm}, [pcm.buffer]);
 }
 </script>
 </body>

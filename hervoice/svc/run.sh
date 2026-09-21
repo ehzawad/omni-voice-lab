@@ -28,9 +28,10 @@ LLM_UTIL="${HV_LLM_GPU_UTIL:-0.65}"
 # and vLLM sizes the cache by profiling FREE memory at startup, so its footprint depends on
 # what else is resident at that instant -- which is why start had to be sequential, and why it
 # would break on Kubernetes (no ordered startup). vLLM itself printed this value for the
-# current footprint: --kv-cache-memory=2641641472 (2.46 GiB). Set HV_LLM_KV_CACHE_BYTES=0 to
-# fall back to the utilisation fraction.
-LLM_KV_BYTES="${HV_LLM_KV_CACHE_BYTES:-2641641472}"
+# footprint. NOTE vLLM printed 2641641472 (2.46 GiB) as the value that FITS the 0.65 request; the
+# measured run actually USED 2.89 GiB, which is what preserves the 26x concurrency figure.
+# Set HV_LLM_KV_CACHE_BYTES=0 to omit the absolute setting.
+LLM_KV_BYTES="${HV_LLM_KV_CACHE_BYTES:-3103113871}"   # 2.89 GiB = what the measured run actually used
 LLM_MAXLEN="${HV_LLM_MAX_MODEL_LEN:-2048}"
 
 # identity check: pid alive AND ours AND cwd==repo AND cmdline mentions the marker
@@ -61,7 +62,8 @@ _start_one() {
     llm) nohup "$VLLM_PY" -m vllm.entrypoints.openai.api_server \
             --model "$LLM_MODEL_ID" --served-model-name "${HV_LLM_MODEL:-gemma4-e4b}" \
             --host 127.0.0.1 --port "$LLM_PORT" \
-            $( [ "$LLM_KV_BYTES" != "0" ] && echo "--kv-cache-memory $LLM_KV_BYTES" || echo "--gpu-memory-utilization $LLM_UTIL" ) \
+            --gpu-memory-utilization "$LLM_UTIL" \
+            $( [ "$LLM_KV_BYTES" != "0" ] && echo "--kv-cache-memory $LLM_KV_BYTES" ) \
             --max-model-len "$LLM_MAXLEN" \
             --no-enable-log-requests >> "$RUN/llm.log" 2>&1 & ;;
     asr) nohup "$BN_PY" -m hervoice.svc.asr_service >> "$RUN/asr.log" 2>&1 & ;;

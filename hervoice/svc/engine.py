@@ -129,8 +129,14 @@ class ServiceEngine:
     def respond(self, messages, cancel, on_delta, on_sentence, on_audio):
         """Stream a reply for `messages` (system + history + current user turn).
 
-        Returns (generated_text, spoken_text). They differ when the turn is cancelled: the
-        caller should remember only what the user actually HEARD, which is `spoken_text`.
+        Callbacks: on_delta(text), on_sentence(idx, text) when a sentence is handed to TTS,
+        on_audio(pcm, idx) per synthesised chunk, on_sentence_done(idx) is NOT a callback --
+        completeness is signalled by returning; the caller tracks per-sentence chunk sets.
+
+        Returns (generated_text, emitted_text). `emitted_text` is what was HANDED TO THE
+        SOCKET, not what the listener heard: the browser may still discard it on a cancel.
+        Memory must therefore be committed from playback acknowledgements (turnloop ledger),
+        never from this return value.
         """
         buf, n_sent, generated, spoken = "", 0, [], []
         for delta in self._brain_stream(messages, cancel):
@@ -158,7 +164,7 @@ class ServiceEngine:
         sentence = _despeak_markdown(sentence).strip()
         if not sentence:
             return False
-        on_sentence(sentence)
+        on_sentence(idx, sentence)
         chunks = self._chunks(sentence)
         for ci, ch in enumerate(chunks):
             if cancel.is_set():
@@ -170,5 +176,5 @@ class ServiceEngine:
                 return False
             if cancel.is_set():
                 return False    # finished, but already stale -- drop rather than play
-            on_audio(pcm)
+            on_audio(pcm, idx)
         return bool(chunks)

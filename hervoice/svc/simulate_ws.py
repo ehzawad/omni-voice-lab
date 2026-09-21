@@ -96,6 +96,8 @@ async def main():
                 else:
                     kind, epoch, seq, sr = P.unpack_header(m)
                     pcm = np.frombuffer(m, dtype="<f4", offset=P.HEADER_SIZE)
+                    # instant-playback client: acknowledge each chunk so the memory ledger commits
+                    await ws.send(json.dumps({"type": "played", "epoch": epoch, "seq": seq}))
                     audio_by_epoch.setdefault(epoch, []).append(pcm)
                     if epoch in state["cancelled_epochs"]:
                         stale.append((epoch, seq, round((time.time() - t0) * 1000, 1)))

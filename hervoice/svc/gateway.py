@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Gateway: the browser's WebSocket, the Silero VAD, and the turn state machine.
+
+This is the only process the browser talks to. It holds no model of its own except the VAD
+(a few MB on CPU), so the GPU budget belongs entirely to the three model services.
+
+    HV_GW_TOKEN=... .venv-bnweb/bin/python -m hervoice.svc.gateway
+    # then from a laptop:  ssh -N -L 8100:127.0.0.1:8100 <box>
+    #                      open http://localhost:8100/
+
+Binding to 127.0.0.1 and reaching it through an SSH tunnel is deliberate and does double duty:
+it keeps a microphone endpoint off a shared box's network, and http://localhost is a SECURE
+CONTEXT, so getUserMedia works without a TLS certificate. A token is still required, because
+anyone else with an account on this box can reach 127.0.0.1.
+"""
+import asyncio
+import json
+import logging
+import os
+import sys
+import threading
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from hervoice.svc import config as C           # noqa: E402
+from hervoice.svc import protocol as P         # noqa: E402
+from hervoice.svc.engine import ServiceEngine  # noqa: E402
+from hervoice.svc.turnloop import TurnLoop     # noqa: E402
+
+log = logging.getLogger("gateway")
+STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+_sessions = 0
+_sessions_lock = threading.Lock()
+
+
+def _make_detector():
+    """Build the VAD and WARM IT before any real audio arrives.
+
+    Silero's first inference is slow enough to stall the consumer thread while frames pile
+    up behind it; that stall is what made the admission queue drop mid-utterance audio and
+    corrupt the very first transcript of a session. Warming costs milliseconds once.
+    """
+    from hervoice.live.turn_detector import TurnDetector
+    d = TurnDetector()
+    silence = np.zeros(512, dtype=np.float32)
+    for _ in range(4):
+        d.process(silence)
+    d.reset()
+    return d
+
+
+def build_app():
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app = FastAPI(title="hervoice-gateway")
+    if os.path.isdir(STATIC):
+        app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.get("/health")
+    def health():
+        return {"ok": True}
+
+    @app.get("/ready")
+    def ready():
+        import urllib.request
+        out = {}
+        for name, url in (("asr", f"{C.ASR_URL}/ready"), ("tts", f"{C.TTS_URL}/ready"),
+                          ("llm", f"{C.LLM_URL}/health")):
+            try:
+                with urllib.request.urlopen(url, timeout=3) as r:
+                    out[name] = r.status == 200
+            except Exception:
+                out[name] = False
+        ok = all(out.values())
+        return JSONResponse({"ready": ok, "services": out, "config": C.summary()},
+                            status_code=200 if ok else 503)
+
+    @app.get("/")
+    def index():
+        p = os.path.join(STATIC, "index.html")
+        if not os.path.isfile(p):
+            return JSONResponse({"error": "client not built"}, status_code=404)
+        return FileResponse(p)
+
+    @app.websocket("/ws")
+    async def ws(sock: WebSocket):
+        global _sessions
+        await sock.accept()
+        loop = asyncio.get_running_loop()
+
+        # --- admission -------------------------------------------------------
+        try:
+            hello = await asyncio.wait_for(sock.receive_text(), timeout=10.0)
+            msg = json.loads(hello)
+        except Exception:
+            await sock.close(code=4400); return
+        if msg.get("type") != "hello":
+            await sock.close(code=4400); return
+        if C.GW_TOKEN and msg.get("token") != C.GW_TOKEN:
+            await sock.send_text(json.dumps({"type": "error", "message": "bad token"}))
+            await sock.close(code=4401); return
+        with _sessions_lock:
+            if _sessions >= C.MAX_SESSIONS:
+                await sock.send_text(json.dumps(
+                    {"type": "error", "message": "busy: one conversation at a time"}))
+                await sock.close(code=4409); return
+            _sessions += 1
+
+        outq: asyncio.Queue = asyncio.Queue(maxsize=256)
+
+        def emit(ev):            # called from the loop thread
+            loop.call_soon_threadsafe(_put, ("json", ev))
+
+        def send_audio(epoch, pcm):
+            loop.call_soon_threadsafe(
+                _put, ("bin", (epoch, np.ascontiguousarray(pcm, dtype="<f4").tobytes())))
+
+        def _put(item):
+            try:
+                outq.put_nowait(item)
+            except asyncio.QueueFull:
+                log.warning("client too slow; dropping outbound frame")
+
+        engine = ServiceEngine()
+        tl = TurnLoop(engine, _make_detector(), on_event=emit, on_audio=send_audio,
+                      sr=C.SR_IN, max_queue=C.MAX_INBOUND_FRAMES,
+                      max_turn_s=C.MAX_TURN_SECONDS)
+
+        th = threading.Thread(target=tl.run, daemon=True)
+        th.start()
+        await sock.send_text(json.dumps({"type": "ready", "config": C.summary()}))
+
+        seqs = {}
+
+        async def pump():
+            while True:
+                kind, payload = await outq.get()
+                if kind == "json":
+                    await sock.send_text(json.dumps(payload, ensure_ascii=False))
+                else:
+                    epoch, pcm = payload
+                    seq = seqs.get(epoch, 0)
+                    seqs[epoch] = seq + 1
+                    await sock.send_bytes(P.pack_audio(epoch, seq, C.SR_OUT, pcm))
+
+        pump_task = asyncio.create_task(pump())
+        try:
+            while True:
+                m = await sock.receive()
+                if m.get("type") == "websocket.disconnect":
+                    break
+                if (b := m.get("bytes")) is not None:
+                    if len(b) % 4 == 0 and b:
+                        tl.submit_frame(np.frombuffer(b, dtype="<f4"))
+                elif (t := m.get("text")) is not None:
+                    try:
+                        d = json.loads(t)
+                    except json.JSONDecodeError:
+                        continue
+                    if d.get("type") == "played":
+                        tl.note_played(int(d.get("epoch", 0)), int(d.get("seq", 0)))
+                    elif d.get("type") == "stop":
+                        break
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            log.exception("ws error")
+        finally:
+            pump_task.cancel()
+            tl.stop()                       # cancels any in-flight generation
+            th.join(timeout=15.0)
+            with _sessions_lock:
+                _sessions -= 1
+            try:
+                await sock.close()
+            except Exception:
+                pass
+
+    return app
+
+
+app = build_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    if not C.GW_TOKEN:
+        log.warning("HV_GW_TOKEN is unset: anyone with an account on this box can reach "
+                    "127.0.0.1:%d and speak to the bot. Set it.", C.GW_PORT)
+    uvicorn.run(app, host=C.GW_HOST, port=C.GW_PORT, log_level="warning")

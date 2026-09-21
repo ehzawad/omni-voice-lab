@@ -1,0 +1,36 @@
+# Bengali web voice bot (.venv-bnweb): all three models CO-RESIDENT in one process,
+# so there is no per-turn load/free cycle. Replaces the sequential-residency path.
+#
+#   uv venv --python 3.12 .venv-bnweb
+#   uv pip install --python .venv-bnweb/bin/python torch==2.8.0 torchaudio==2.8.0 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#   uv pip install --python .venv-bnweb/bin/python -r requirements-bnweb.txt
+#   # f5_tts is NOT the PyPI package; install the pinned source IndicF5's weights expect:
+#   git -C third_party clone https://github.com/SWivid/F5-TTS
+#   git -C third_party/F5-TTS checkout 9c614e9657089213efc6a7421b30630be138a3f5
+#   uv pip install --python .venv-bnweb/bin/python -e third_party/F5-TTS
+
+torch==2.8.0
+torchaudio==2.8.0
+
+# ASR: ehzawad/stt_bn_fastconformer_ctc (NeMo FastConformer-CTC, 115.6M)
+nemo_toolkit[asr]==2.7.3
+
+# brain: Qwen2.5-3B-Instruct. NOTE: transformers is NOT pinned to the repo-wide 4.51.0 --
+# nemo_toolkit[asr]==2.7.3 requires >=4.57,<4.58, so this stack cannot share a venv with the
+# MiniCPM-o paths. Qwen2 arch loads fine on 4.57.
+transformers
+accelerate
+
+# turn detection
+silero-vad
+onnxruntime            # silero-vad imports it at load time
+
+# web transport
+fastapi
+uvicorn[standard]
+websockets
+
+soundfile
+librosa
+numpy

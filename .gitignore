@@ -56,3 +56,9 @@ Thumbs.db
 
 # HerVoice runtime outputs (regenerate with python -m hervoice)
 runs/
+
+# bnweb / svc
+.venv-bnweb/
+.venv-vllm/
+third_party/
+runs/

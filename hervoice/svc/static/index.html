@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HerVoice BN</title>
+<style>
+  :root { color-scheme: light dark; --bg:#0f1115; --fg:#e8eaf0; --dim:#9aa3b2;
+          --accent:#6ea8fe; --ok:#57d9a3; --warn:#ffb86b; --err:#ff7b72; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--fg);
+         font:15px/1.6 ui-sans-serif,system-ui,"Noto Sans Bengali",sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; }
+  h1 { font-size:20px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:20px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  button { font:inherit; padding:9px 18px; border-radius:8px; border:1px solid #2b3240;
+           background:#1a1f29; color:var(--fg); cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:disabled { opacity:.45; cursor:default; }
+  input { font:inherit; padding:9px 12px; border-radius:8px; border:1px solid #2b3240;
+          background:#1a1f29; color:var(--fg); min-width:180px; }
+  #state { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--dim); }
+  .dot { width:9px; height:9px; border-radius:50%; background:#3a4150; }
+  .dot.listening{background:var(--ok)} .dot.user_speaking{background:var(--accent)}
+  .dot.thinking{background:var(--warn)} .dot.speaking{background:#c792ea}
+  .panel { background:#151a23; border:1px solid #232a36; border-radius:10px;
+           padding:14px 16px; margin-bottom:14px; }
+  .label { font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+           color:var(--dim); margin-bottom:6px; }
+  #you, #bot { font-size:17px; min-height:1.6em; word-wrap:break-word; }
+  #bot { color:#c792ea; }
+  #log { font:12px/1.5 ui-monospace,monospace; color:var(--dim); background:#0c0f14;
+         border:1px solid #232a36; border-radius:10px; padding:12px; height:190px;
+         overflow-y:auto; white-space:pre-wrap; }
+  .m { display:inline-block; margin-right:14px; font:12px ui-monospace,monospace; color:var(--dim); }
+  .m b { color:var(--fg); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>HerVoice BN</h1>
+  <div class="sub">বাংলা ভয়েস অ্যাসিস্ট্যান্ট · FastConformer-CTC → Gemma&nbsp;4 E4B → IndicF5</div>
+
+  <div class="row">
+    <input id="token" type="password" placeholder="access token" autocomplete="off">
+    <button id="start">Start talking</button>
+    <button id="stop" disabled>Stop</button>
+    <span id="state"><span class="dot" id="dot"></span><span id="stateText">idle</span></span>
+  </div>
+
+  <div class="panel"><div class="label">You said</div><div id="you">—</div></div>
+  <div class="panel"><div class="label">Assistant</div><div id="bot">—</div></div>
+  <div class="panel">
+    <div class="label">Latency</div>
+    <span class="m">first audio <b id="mFirst">—</b></span>
+    <span class="m">cancel→new turn <b id="mCancel">—</b></span>
+    <span class="m">capture <b id="mCap">—</b></span>
+    <span class="m">playback <b id="mPlay">—</b></span>
+    <span class="m">AEC <b id="mAec">—</b></span>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const log = (...a) => { const el=$("log");
+  el.textContent += a.join(" ") + "\n"; el.scrollTop = el.scrollHeight; };
+
+const SR_IN = 16000, SR_OUT = 24000, HDR = 16, MAGIC = 0x4856; // 'HV'
+
+let ws=null, capCtx=null, playCtx=null, capNode=null, playNode=null, stream=null;
+let currentEpoch = 0;
+
+// ---------------------------------------------------------------- worklets
+// Capture: hand raw frames up to the main thread in ~20 ms blocks.
+const CAPTURE_WORKLET = `
+class Cap extends AudioWorkletProcessor {
+  constructor(){ super(); this.buf=[]; this.n=0; this.target=Math.round(sampleRate*0.02); }
+  process(inputs){
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) { this.buf.push(new Float32Array(ch)); this.n += ch.length;
+      while (this.n >= this.target) {
+        const out = new Float32Array(this.target); let o=0;
+        while (o < this.target) {
+          const head = this.buf[0]; const take = Math.min(head.length, this.target-o);
+          out.set(head.subarray(0,take), o); o += take;
+          if (take === head.length) this.buf.shift(); else this.buf[0]=head.subarray(take);
+        }
+        this.n -= this.target;
+        this.port.postMessage(out, [out.buffer]);
+      } }
+    return true; } }
+registerProcessor('cap', Cap);`;
+
+// Playback: an epoch-tagged ring. A cancel for epoch E drops everything still held for E,
+// which is the whole point -- the server has already stopped sending, but the browser may
+// still be holding seconds of speech.
+const PLAY_WORKLET = `
+class Play extends AudioWorkletProcessor {
+  constructor(){ super(); this.q=[]; this.epoch=0; this.played=0; this.lastAck=0;
+    this.port.onmessage = e => {
+      const m = e.data;
+      if (m.cmd === 'push') { if (m.epoch === this.epoch) this.q.push(m.pcm); }
+      else if (m.cmd === 'epoch') { this.epoch = m.epoch; }
+      else if (m.cmd === 'flush') { this.q.length = 0; }
+    }; }
+  process(_, outputs){
+    const out = outputs[0][0]; let o = 0;
+    while (o < out.length && this.q.length) {
+      const head = this.q[0]; const take = Math.min(head.length, out.length-o);
+      out.set(head.subarray(0,take), o); o += take;
+      if (take === head.length) this.q.shift(); else this.q[0] = head.subarray(take);
+      this.played += take; }
+    while (o < out.length) out[o++] = 0;
+    if (this.q.length === 0 && this.played > this.lastAck) {
+      this.lastAck = this.played;
+      this.port.postMessage({drained:true, epoch:this.epoch}); }
+    return true; } }
+registerProcessor('play', Play);`;
+
+const workletURL = src => URL.createObjectURL(new Blob([src], {type:'application/javascript'}));
+
+// ---------------------------------------------------------------- start
+$("start").onclick = async () => {
+  $("start").disabled = true;
+  try {
+    // AEC is a correctness requirement, not a nicety: without it the assistant's own voice
+    // re-enters the mic and Silero barges the bot in on itself, forever.
+    stream = await navigator.mediaDevices.getUserMedia({ video:false, audio:{
+      channelCount:{ideal:1}, echoCancellation:true, noiseSuppression:true, autoGainControl:true }});
+    const st = stream.getAudioTracks()[0].getSettings();
+    $("mAec").textContent = st.echoCancellation ? "on" : "OFF (feedback likely)";
+    log(`[mic] ${JSON.stringify({ec:st.echoCancellation, ns:st.noiseSuppression, agc:st.autoGainControl, sr:st.sampleRate})}`);
+
+    // Ask the browser for contexts already at our rates; it resamples with proper filters.
+    capCtx  = new AudioContext({sampleRate: SR_IN});
+    playCtx = new AudioContext({sampleRate: SR_OUT});
+    $("mCap").textContent  = capCtx.sampleRate + " Hz";
+    $("mPlay").textContent = playCtx.sampleRate + " Hz";
+    if (capCtx.sampleRate !== SR_IN)
+      log(`[warn] capture context is ${capCtx.sampleRate} Hz, not ${SR_IN}; ASR quality will suffer`);
+    if (playCtx.sampleRate !== SR_OUT)
+      log(`[warn] playback context is ${playCtx.sampleRate} Hz, not ${SR_OUT}; audio will be pitch-shifted`);
+
+    await capCtx.audioWorklet.addModule(workletURL(CAPTURE_WORKLET));
+    await playCtx.audioWorklet.addModule(workletURL(PLAY_WORKLET));
+
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => ws.send(JSON.stringify({type:"hello", token:$("token").value, sample_rate:capCtx.sampleRate}));
+    ws.onclose = e => { log(`[ws] closed ${e.code}`); teardown(); };
+    ws.onerror = () => log("[ws] error");
+    ws.onmessage = onMessage;
+
+    capNode = new AudioWorkletNode(capCtx, 'cap');
+    capNode.port.onmessage = e => { if (ws && ws.readyState === 1) ws.send(e.data); };
+    capCtx.createMediaStreamSource(stream).connect(capNode);
+    capNode.connect(capCtx.destination);   // required to pull, outputs silence
+
+    playNode = new AudioWorkletNode(playCtx, 'play');
+    playNode.connect(playCtx.destination);
+    playNode.port.onmessage = e => {
+      if (e.data.drained && ws && ws.readyState === 1)
+        ws.send(JSON.stringify({type:"played", epoch:e.data.epoch, seq:0}));
+    };
+
+    $("stop").disabled = false;
+    log("[ready] speak when the dot is green");
+  } catch (err) { log("[fatal] " + err); $("start").disabled = false; }
+};
+
+$("stop").onclick = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:"stop"})); teardown(); };
+
+function teardown(){
+  try { capNode && capNode.disconnect(); } catch{}
+  try { stream && stream.getTracks().forEach(t=>t.stop()); } catch{}
+  try { capCtx && capCtx.close(); playCtx && playCtx.close(); } catch{}
+  try { ws && ws.close(); } catch{}
+  ws=null; $("start").disabled=false; $("stop").disabled=true; setState("idle");
+}
+
+function setState(s){ $("stateText").textContent = s; $("dot").className = "dot " + s; }
+
+function onMessage(ev){
+  if (typeof ev.data === "string") {
+    const m = JSON.parse(ev.data);
+    switch (m.type) {
+      case "ready":      log("[ready] " + JSON.stringify(m.config)); break;
+      case "state":      setState(m.state); break;
+      case "turn_start":
+        currentEpoch = m.epoch;
+        playNode.port.postMessage({cmd:'epoch', epoch:m.epoch});
+        playNode.port.postMessage({cmd:'flush'});
+        if (m.barge_in) log(`[barge-in] turn ${m.turn}`);
+        $("you").textContent = "…"; $("bot").textContent = "";
+        break;
+      case "asr":        $("you").textContent = m.text || "(nothing heard)"; break;
+      case "text":       $("bot").textContent += m.delta; break;
+      case "cancel":
+        // Everything still queued for that epoch is void. This is the flush the old
+        // local client only claimed to do.
+        playNode.port.postMessage({cmd:'flush'});
+        log(`[cancel] epoch ${m.epoch} (${m.reason})`);
+        break;
+      case "metrics":
+        if (m.first_audio_ms != null) $("mFirst").textContent = Math.round(m.first_audio_ms)+" ms";
+        if (m.cancel_to_new_turn_ms != null) $("mCancel").textContent = Math.round(m.cancel_to_new_turn_ms)+" ms";
+        break;
+      case "turn_end":   log(`[turn ${m.turn}] end${m.cancelled?" (cancelled)":""}`); break;
+      case "error":      log("[error] " + m.message); break;
+    }
+    return;
+  }
+  // binary: epoch-stamped PCM
+  const dv = new DataView(ev.data);
+  if (dv.getUint16(0, false) !== MAGIC) return;
+  const epoch = dv.getUint32(4, true);
+  if (epoch !== currentEpoch) return;                    // stale: drop, do not play
+  const pcm = new Float32Array(ev.data, HDR);
+  playNode.port.postMessage({cmd:'push', epoch, pcm}, [pcm.buffer]);
+}
+</script>
+</body>
+</html>

@@ -76,6 +76,7 @@ async def main():
 
     async with websockets.connect(a.url, max_size=None) as ws:
         await ws.send(json.dumps({"type": "hello", "token": a.token, "sample_rate": C.SR_IN}))
+        ready = asyncio.Event()
 
         async def reader():
             async for m in ws:
@@ -84,6 +85,7 @@ async def main():
                     d["at_ms"] = round((time.time() - t0) * 1000, 1)
                     events.append(d)
                     t = d.get("type")
+                    if t == "ready": ready.set()
                     if t == "turn_start":
                         state["cur"] = d["epoch"]; state["speaking"] = False
                     elif t == "state":
@@ -103,7 +105,7 @@ async def main():
                         stale.append((epoch, seq, round((time.time() - t0) * 1000, 1)))
 
         rtask = asyncio.create_task(reader())
-        await asyncio.sleep(0.4)
+        await asyncio.wait_for(ready.wait(), timeout=30)   # never stream before the server is ready
 
         print(f"[sim] scenario={a.scenario}  feeding {len(audio)/C.SR_IN:.2f}s of speech")
         await feed(ws, audio)
@@ -151,7 +153,10 @@ async def main():
         print(f"    -> the client drops these by epoch; server sent {len(stale)} after cancel")
     asr = [e for e in events if e["type"] == "asr"]
     if asr:
-        print(f"  ASR                : {asr[0].get('text','')!r}")
+        print(f"  ASR                : {asr[0].get('text','')!r}  (turn audio {asr[0].get('turn_audio_s')}s, "
+              f"dropped frames {asr[0].get('dropped_frames')})")
+        if asr[0].get("dropped_frames"):
+            print("    !! frames were dropped -- the client streamed before the server was ready, or the consumer stalled")
     fa = [e.get("first_audio_ms") for e in events if e["type"] == "metrics" and e.get("first_audio_ms")]
     cn = [e.get("cancel_to_new_turn_ms") for e in events if e["type"] == "metrics" and e.get("cancel_to_new_turn_ms")]
     if fa: print(f"  first audio        : {fa[0]:.0f} ms")

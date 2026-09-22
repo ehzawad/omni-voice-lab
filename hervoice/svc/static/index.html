@@ -70,6 +70,7 @@ const log = (...a) => { const el=$("log");
 const SR_IN = 16000, SR_OUT = 24000, HDR = 16, MAGIC = 0x4856; // 'HV'
 
 let ws=null, capCtx=null, playCtx=null, capNode=null, playNode=null, stream=null;
+let serverReady = false;
 let currentEpoch = 0;
 
 // ---------------------------------------------------------------- worklets
@@ -173,8 +174,10 @@ $("start").onclick = async () => {
     ws.onerror = () => log("[ws] error");
     ws.onmessage = onMessage;
 
+    // Capture is built now but NOT connected until the server says `ready`: audio sent before
+    // the server's turn loop exists piles up and the onset of the first utterance is lost.
     capNode = new AudioWorkletNode(capCtx, 'cap');
-    capNode.port.onmessage = e => { if (ws && ws.readyState === 1) ws.send(e.data); };
+    capNode.port.onmessage = e => { if (serverReady && ws && ws.readyState === 1) ws.send(e.data); };
     capCtx.createMediaStreamSource(stream).connect(capNode);
     capNode.connect(capCtx.destination);   // required to pull, outputs silence
 
@@ -198,7 +201,7 @@ function teardown(){
   try { stream && stream.getTracks().forEach(t=>t.stop()); } catch{}
   try { capCtx && capCtx.close(); playCtx && playCtx.close(); } catch{}
   try { ws && ws.close(); } catch{}
-  ws=null; $("start").disabled=false; $("stop").disabled=true; setState("idle");
+  ws=null; serverReady=false; $("start").disabled=false; $("stop").disabled=true; setState("idle");
 }
 
 function setState(s){ $("stateText").textContent = s; $("dot").className = "dot " + s; }
@@ -207,7 +210,7 @@ function onMessage(ev){
   if (typeof ev.data === "string") {
     const m = JSON.parse(ev.data);
     switch (m.type) {
-      case "ready":      log("[ready] " + JSON.stringify(m.config)); break;
+      case "ready":      serverReady = true; log("[ready] " + JSON.stringify(m.config)); log("[ready] streaming mic now"); break;
       case "state":      setState(m.state); break;
       case "turn_start":
         currentEpoch = m.epoch;

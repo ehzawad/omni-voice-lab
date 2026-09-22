@@ -83,6 +83,7 @@ async def run(clips, token, out_dir):
     results = []
     async with websockets.connect(f"ws://127.0.0.1:{C.GW_PORT}/ws", max_size=None) as ws:
         await ws.send(json.dumps({"type": "hello", "token": token, "sample_rate": C.SR_IN}))
+        ready = asyncio.Event()
         st = {"ended": 0, "err": [], "turns": {}}   # turns keyed by server turn number
 
         async def reader():
@@ -93,6 +94,7 @@ async def run(clips, token, out_dir):
                     continue
                 if isinstance(m, str):
                     d = json.loads(m); t = d.get("type"); tn = d.get("turn")
+                    if t == "ready": ready.set()
                     if tn is not None:
                         rec = st["turns"].setdefault(tn, {"asr": "", "reply": "", "first": None, "first_se": None, "ended": False})
                     if t == "asr": rec["asr"] = d.get("text", "")
@@ -103,7 +105,7 @@ async def run(clips, token, out_dir):
                     elif t == "turn_end": rec["ended"] = True; st["ended"] += 1
                     elif t == "error": st["err"].append(d.get("message"))
         rt = asyncio.create_task(reader())
-        await asyncio.sleep(0.3)
+        await asyncio.wait_for(ready.wait(), timeout=30)   # never stream before the server is ready
 
         async def silence(sec):
             z = np.zeros(n, dtype="<f4").tobytes()

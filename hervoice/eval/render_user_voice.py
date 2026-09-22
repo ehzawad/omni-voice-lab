@@ -4,10 +4,16 @@
 There is no microphone on this box and nobody available to record, so the user turns are
 synthesised. Two deliberate choices keep this honest:
 
-  * a DIFFERENT model and prompt from the assistant: the released ai4bharat/IndicF5 with its
-    Marathi female prompt, against the assistant's fine-tune with the Punjabi prompt. If the
-    same voice spoke both sides, the ASR would be tested on the one voice the TTS was tuned
-    to produce, which is the easiest possible input.
+  * a DIFFERENT voice from the assistant: the released ai4bharat/IndicF5 conditioned on a REAL
+    BENGALI MALE speaker (IndicVoices-R, SNR 74 dB), against the assistant's fine-tune on a
+    Punjabi female prompt. If the same voice spoke both sides, the ASR would be tested on the
+    one voice the TTS was tuned to produce, which is the easiest possible input.
+
+    The Bengali reference is not cosmetic. The first version of this script used ai4bharat's
+    MARATHI prompt, and the resulting Bengali was measurably harder for a Bengali ASR than
+    real human speech: direct-to-ASR CER 0.282 against 0.112 for real IndicVoices-R speakers.
+    Cross-lingual prompting gives IndicF5 a non-Bengali accent, and the evaluation was then
+    measuring that accent rather than the pipeline. Condition on the target language.
   * CPU only, at low priority, so the GPU budget on the shared card is untouched. Slow (tens
     of seconds per sentence) but this is offline preparation, not the serving path.
 
@@ -27,9 +33,11 @@ import soundfile as sf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-USER_REF_FILE = "prompts/MAR_F_HAPPY_00001.wav"
-# transcript of that prompt, from the IndicF5 model card
-USER_REF_TEXT = "गोपाळकाला हा सण श्रावण महिन्यात साजरा केला जातो, ज्यामुळे मला खूप आनंद होतो."
+
+# A real Bengali male speaker, extracted from IndicVoices-R by pick_user_ref (see DECISIONS.md).
+# Regenerate with a different speaker by replacing these two files.
+USER_REF_WAV = os.path.join(HERE, "user_ref.wav")
+USER_REF_TXT = os.path.join(HERE, "user_ref.txt")
 
 
 def main():
@@ -43,9 +51,9 @@ def main():
     out_root = os.path.join(HERE, "audio")
     os.makedirs(out_root, exist_ok=True)
 
-    ref = hf_hub_download("ai4bharat/IndicF5", USER_REF_FILE)
+    ref_text = open(USER_REF_TXT, encoding="utf-8").read().strip()
     t = time.time()
-    tts = BnTts(repo="ai4bharat/IndicF5", ref_wav=ref, ref_text=USER_REF_TEXT,
+    tts = BnTts(repo="ai4bharat/IndicF5", ref_wav=USER_REF_WAV, ref_text=ref_text,
                 device="cpu", nfe=16)
     print(f"[load] released IndicF5 on CPU in {time.time()-t:.1f}s", flush=True)
 

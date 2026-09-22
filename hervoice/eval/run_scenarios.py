@@ -166,11 +166,17 @@ async def run_audio(scen, out, token, pause_s=1.2):
         state = {"turn_end": 0}
         async with websockets.connect(f"ws://127.0.0.1:{C.GW_PORT}/ws", max_size=None) as ws:
             await ws.send(json.dumps({"type": "hello", "token": token, "sample_rate": C.SR_IN}))
+            ready = asyncio.Event()
 
             async def reader():
                 async for m in ws:
+                    if isinstance(m, (bytes, bytearray)):
+                        _, ep, sq, _ = P.unpack_header(m)
+                        await ws.send(json.dumps({"type": "played", "epoch": ep, "seq": sq}))
+                        continue
                     if isinstance(m, str):
                         d = json.loads(m); ev_log.append(d); t = d.get("type")
+                        if t == "ready": ready.set()
                         tn = d.get("turn")
                         if tn is not None:
                             rec = turns.setdefault(tn, {"asr": "", "reply": "", "first": None,
@@ -184,7 +190,7 @@ async def run_audio(scen, out, token, pause_s=1.2):
                         elif t == "turn_end":
                             rec["ended"] = True; state["turn_end"] += 1
             rt = asyncio.create_task(reader())
-            await asyncio.sleep(0.3)
+            await asyncio.wait_for(ready.wait(), timeout=30)   # never stream before the server is ready
 
             async def silence(sec):
                 z = np.zeros(n, dtype="<f4").tobytes()

@@ -4,143 +4,143 @@
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/capital_followups/t0.wav",
   "text": "বাংলাদেশের রাজধানীর নাম কি?",
-  "seconds": 1.74,
-  "render_s": 32.0
+  "seconds": 1.78,
+  "render_s": 36.1
  },
  {
   "scenario": "capital_followups",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/capital_followups/t1.wav",
   "text": "সেখানে কোন নদী আছে?",
-  "seconds": 1.16,
-  "render_s": 27.8
+  "seconds": 1.19,
+  "render_s": 31.2
  },
  {
   "scenario": "capital_followups",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/capital_followups/t2.wav",
   "text": "ওই শহরটা কত পুরনো?",
-  "seconds": 1.09,
-  "render_s": 28.4
+  "seconds": 1.12,
+  "render_s": 30.9
  },
  {
   "scenario": "nid_documents",
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/nid_documents/t0.wav",
   "text": "নতুন জাতীয় পরিচয়পত্র করতে কী কী কাগজ লাগে?",
-  "seconds": 2.78,
-  "render_s": 36.4
+  "seconds": 2.84,
+  "render_s": 38.2
  },
  {
   "scenario": "nid_documents",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/nid_documents/t1.wav",
   "text": "এটা করতে কত টাকা লাগে?",
-  "seconds": 1.33,
-  "render_s": 29.2
+  "seconds": 1.37,
+  "render_s": 31.9
  },
  {
   "scenario": "nid_documents",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/nid_documents/t2.wav",
   "text": "আর কতদিন সময় লাগবে পেতে?",
-  "seconds": 1.55,
-  "render_s": 30.6
+  "seconds": 1.59,
+  "render_s": 33.4
  },
  {
   "scenario": "passport_chain",
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/passport_chain/t0.wav",
   "text": "ই-পাসপোর্ট করতে কী লাগে?",
-  "seconds": 1.48,
-  "render_s": 30.5
+  "seconds": 1.51,
+  "render_s": 32.9
  },
  {
   "scenario": "passport_chain",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/passport_chain/t1.wav",
   "text": "ওটা কত পাতার হয়?",
-  "seconds": 1.02,
-  "render_s": 27.3
+  "seconds": 1.05,
+  "render_s": 30.6
  },
  {
   "scenario": "passport_chain",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/passport_chain/t2.wav",
   "text": "আর মেয়াদ কত বছর?",
-  "seconds": 1.02,
-  "render_s": 28.1
+  "seconds": 1.05,
+  "render_s": 31.0
  },
  {
   "scenario": "land_mutation",
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/land_mutation/t0.wav",
   "text": "জমির নামজারি কীভাবে করব?",
-  "seconds": 1.53,
-  "render_s": 30.7
+  "seconds": 1.56,
+  "render_s": 33.8
  },
  {
   "scenario": "land_mutation",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/land_mutation/t1.wav",
   "text": "এর জন্য কোথায় যেতে হবে?",
-  "seconds": 1.48,
-  "render_s": 30.3
+  "seconds": 1.51,
+  "render_s": 34.1
  },
  {
   "scenario": "land_mutation",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/land_mutation/t2.wav",
   "text": "ফি কত?",
-  "seconds": 0.32,
-  "render_s": 24.0
+  "seconds": 0.33,
+  "render_s": 27.0
  },
  {
   "scenario": "self_intro_recall",
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/self_intro_recall/t0.wav",
   "text": "আমার নাম রফিক। আমি চট্টগ্রামে থাকি।",
-  "seconds": 2.27,
-  "render_s": 34.0
+  "seconds": 2.33,
+  "render_s": 37.1
  },
  {
   "scenario": "self_intro_recall",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/self_intro_recall/t1.wav",
   "text": "আমার শহরের আবহাওয়া সাধারণত কেমন?",
-  "seconds": 2.13,
-  "render_s": 32.8
+  "seconds": 2.18,
+  "render_s": 36.7
  },
  {
   "scenario": "self_intro_recall",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/self_intro_recall/t2.wav",
   "text": "আমার নাম কী বলেছিলাম?",
-  "seconds": 1.31,
-  "render_s": 29.3
+  "seconds": 1.33,
+  "render_s": 32.4
  },
  {
   "scenario": "topic_switch_then_return",
   "turn": 0,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/topic_switch_then_return/t0.wav",
   "text": "বাংলাদেশের জাতীয় ফুল কোনটি?",
-  "seconds": 1.81,
-  "render_s": 32.3
+  "seconds": 1.86,
+  "render_s": 35.2
  },
  {
   "scenario": "topic_switch_then_return",
   "turn": 1,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/topic_switch_then_return/t1.wav",
   "text": "আজ কি বৃষ্টি হবে?",
-  "seconds": 1.02,
-  "render_s": 27.6
+  "seconds": 1.05,
+  "render_s": 30.0
  },
  {
   "scenario": "topic_switch_then_return",
   "turn": 2,
   "path": "/mnt/sdb/arafat/ehz/llm/omni-voice-lab/hervoice/eval/audio/topic_switch_then_return/t2.wav",
   "text": "আগে যে ফুলটার কথা বললে, সেটা কোথায় ফোটে?",
-  "seconds": 2.52,
-  "render_s": 35.0
+  "seconds": 2.57,
+  "render_s": 39.0
  }
 ]

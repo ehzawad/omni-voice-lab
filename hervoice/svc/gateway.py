@@ -39,9 +39,12 @@ _sessions_lock = threading.Lock()
 def _make_detector():
     """Build the VAD and WARM IT before any real audio arrives.
 
-    Silero's first inference is slow enough to stall the consumer thread while frames pile
-    up behind it; that stall is what made the admission queue drop mid-utterance audio and
-    corrupt the very first transcript of a session. Warming costs milliseconds once.
+    Silero's first load + first inference in a fresh process takes seconds. Measured: with
+    the detector built INSIDE the connection handler, a client that started streaming right
+    after `hello` piled up ~5 s of frames, the bounded queue dropped 47 of them (~940 ms),
+    and the first transcript lost its onset ('বাংলাদেশের রাজধানীর' -> 'সে রাজধানীর').
+    So the cold path runs ONCE at process start (see warm_at_startup), per-connection
+    construction is then fast, and the client is told to wait for `ready` anyway.
     """
     from hervoice.live.turn_detector import TurnDetector
     d = TurnDetector(min_silence_ms=C.MIN_SILENCE_MS, min_speech_ms=C.MIN_SPEECH_MS)
@@ -52,12 +55,25 @@ def _make_detector():
     return d
 
 
+def warm_at_startup():
+    """Pay Silero's cold load once, before the first connection exists."""
+    import time
+    t = time.time()
+    _make_detector()
+    log.info("VAD warm in %.2fs", time.time() - t)
+
+
 def build_app():
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.responses import FileResponse, JSONResponse
     from fastapi.staticfiles import StaticFiles
 
     app = FastAPI(title="hervoice-gateway")
+
+    @app.on_event("startup")
+    def _startup():
+        warm_at_startup()
+
     if os.path.isdir(STATIC):
         app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -137,6 +153,9 @@ def build_app():
 
         th = threading.Thread(target=tl.run, daemon=True)
         th.start()
+        # Contract: the client MUST NOT stream audio until it has received `ready`. Frames
+        # sent before this point sit in the socket buffer and arrive in a burst that the
+        # bounded admission queue will (correctly) drop from.
         await sock.send_text(json.dumps({"type": "ready", "config": C.summary()}))
 
         async def pump():

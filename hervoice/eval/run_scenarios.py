@@ -153,8 +153,12 @@ def run_text(scen, out):
 async def run_audio(scen, out, token, pause_s=1.2):
     import websockets
     results = []
-    manifest = {(m["scenario"], m["turn"]): m for m in
-                json.load(open(os.path.join(HERE, "audio", "manifest.json"), encoding="utf-8"))}
+    _root = os.path.dirname(os.path.dirname(HERE))
+    manifest = {}
+    for m in json.load(open(os.path.join(HERE, "audio", "manifest.json"), encoding="utf-8")):
+        if not os.path.isabs(m["path"]):
+            m["path"] = os.path.join(_root, m["path"])
+        manifest[(m["scenario"], m["turn"])] = m
     n = int(C.SR_IN * 0.02)
 
     for sc in scen["scenarios"]:

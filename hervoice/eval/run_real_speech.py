@@ -37,7 +37,23 @@ from hervoice.svc import config as C
 from hervoice.svc import protocol as P                       # noqa: E402
 from hervoice.eval.run_scenarios import _cer, script_ok    # noqa: E402
 
-PARQ = "/mnt/sdb/arafat/.cache/huggingface/hub/datasets--ai4bharat--indicvoices_r/snapshots/*/Bengali/*.parquet"
+# IndicVoices-R Bengali shards, read from the local Hub cache. Override with HV_INDICVOICES_GLOB,
+# or let huggingface_hub fetch them (about 4.6 GB) if the cache is empty.
+_HF = os.environ.get("HF_HOME") or os.path.expanduser("~/.cache/huggingface")
+PARQ = os.environ.get(
+    "HV_INDICVOICES_GLOB",
+    os.path.join(_HF, "hub", "datasets--ai4bharat--indicvoices_r", "snapshots", "*", "Bengali", "*.parquet"))
+
+
+def _ensure_shards():
+    """Return the shard list, downloading from the Hub if the cache has none."""
+    fs = sorted(glob.glob(PARQ))
+    if fs:
+        return fs
+    from huggingface_hub import snapshot_download
+    d = snapshot_download("ai4bharat/indicvoices_r", repo_type="dataset",
+                          allow_patterns=["Bengali/*.parquet"])
+    return sorted(glob.glob(os.path.join(d, "Bengali", "*.parquet")))
 
 
 def load_clips(n, seed=17, min_s=1.5, max_s=12.0):
@@ -45,7 +61,7 @@ def load_clips(n, seed=17, min_s=1.5, max_s=12.0):
     import torch
     import torchaudio
     rows = []
-    for f in sorted(glob.glob(PARQ)):
+    for f in _ensure_shards():
         t = pq.read_table(f, columns=["normalized", "verbatim", "audio", "speaker_id", "scenario",
                                       "gender", "age_group", "area", "district", "snr", "duration"])
         for i in range(t.num_rows):

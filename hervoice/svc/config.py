@@ -126,3 +126,12 @@ def summary():
         "max_sessions": MAX_SESSIONS, "auth": bool(GW_TOKEN),
         "min_silence_ms": MIN_SILENCE_MS, "mem_turns": MEM_MAX_TURNS,
     }
+
+
+# MEASURED NULL RESULT, recorded so it is not re-attempted: prompting for a short FIRST
+# sentence looked like a 480 ms saving on the critical path, but the saving came entirely from
+# the model emitting contentless filler ("প্রয়োজনীয় কাগজপত্র তালিকা নিচে দেওয়া হলো।" -- and
+# "below" is meaningless in speech). Adding an explicit ban on filler and preambles collapsed
+# the saving to 48 ms, because Gemma already answers directly and its first sentences are
+# already as short as the content allows. Do not add first-sentence-length instructions to
+# SYSTEM_PROMPT: they trade answer quality for a metric.

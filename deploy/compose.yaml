@@ -102,7 +102,7 @@ services:
       HV_TTS_HOST: 0.0.0.0
       HV_TTS_PORT: "8002"
       HV_TTS_REPO: ${HV_TTS_REPO:-ehzawad/indicf5-bangla-tts}
-      HV_TTS_NFE: ${HV_TTS_NFE:-16}
+      HV_TTS_NFE: ${HV_TTS_NFE:-12}
     depends_on:
       asr: { condition: service_healthy }
     healthcheck:
@@ -125,7 +125,7 @@ services:
       HV_LLM_URL: http://llm:8090
       HV_LLM_MODEL: ${HV_LLM_MODEL:-gemma4-e4b}
       HV_MIN_SILENCE_MS: ${HV_MIN_SILENCE_MS:-700}
-      HV_TTS_NFE: ${HV_TTS_NFE:-16}          # the GATEWAY sends nfe on every request; TTS's own value is only a fallback
+      HV_TTS_NFE: ${HV_TTS_NFE:-12}          # the GATEWAY sends nfe on every request; TTS's own value is only a fallback
       HV_MAX_SESSIONS: ${HV_MAX_SESSIONS:-1}   # one 24 GB card ~ 3-4 sessions; TTS is the wall
     depends_on:
       tts: { condition: service_healthy }

@@ -64,10 +64,12 @@ TTS_REF_TEXT = _s("HV_TTS_REF_TEXT", "")
 DEVICE = _s("HV_DEVICE", "cuda")
 
 # --------------------------------------------------------------------------- generation
-# NFE 16 measured ~1553 ms per chunk against ~3074 ms at 32 for the same text, and is the
-# single biggest latency lever in the whole pipeline. Its quality cost is NOT yet measured,
-# so it stays configurable and the default is stated explicitly rather than inherited.
-TTS_NFE = _i("HV_TTS_NFE", 16)
+# Solver steps for IndicF5. Measured on both cards (hervoice/eval/bench_nfe.py): 12 keeps the
+# NFE-32 reference CER on both GPUs and saves ~290 ms per sentence against 16; a blind
+# listening test found 8/12/16/32 indistinguishable. 8 is REJECTED: identical inputs gave
+# CER 0.0077 on one card and 0.0429 on the other -- below ~12 steps the solve is sensitive
+# to floating-point differences between devices.
+TTS_NFE = _i("HV_TTS_NFE", 12)
 TTS_CFG = _f("HV_TTS_CFG", 2.0)
 TTS_SWAY = _f("HV_TTS_SWAY", -1.0)
 TTS_SPEED = _f("HV_TTS_SPEED", 1.0)
